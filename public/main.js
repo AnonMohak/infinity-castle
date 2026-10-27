@@ -2,7 +2,7 @@
 // Muzan's fortress: an endless shaft of rooms, stairs and lanterns that Nakime refolds at every note.
 import * as THREE from 'three';
 import { LIB } from './js/kit.js';
-import { U, castleMaterial, makeEnv, voidSky, farLamps, dust } from './js/shade.js';
+import { U, castleMaterial, makeEnv, voidSky, farLamps } from './js/shade.js';
 import { Castle, Debris, pathAt, INTRO_Y } from './js/castle.js';
 import { Post } from './js/post.js';
 import { Score } from './js/sound.js';
@@ -38,7 +38,7 @@ function resize() {
   camera.fov = camera.aspect < 0.8 ? 84 : 70;
   camera.updateProjectionMatrix();
   post.setSize(Math.max(4, Math.floor(innerWidth * pixelRatio)), Math.max(4, Math.floor(innerHeight * pixelRatio)));
-  if (motes) far.material.uniforms.uPR.value = pixelRatio;
+  if (far) far.material.uniforms.uPR.value = pixelRatio;
 }
 
 // ---------------------------------------------------------------- the kit: built and lit in workers
@@ -93,7 +93,7 @@ function toGeometry(r) {
 }
 
 // ---------------------------------------------------------------- scene
-let castle, debris, sky, far, motes;
+let castle, debris, sky, far;
 const lamps = [];
 const lampList = [];
 
@@ -109,8 +109,6 @@ async function build() {
   scene.add(sky);
   far = farLamps(9000, 900);
   scene.add(far);
-  motes = dust(1500);
-  scene.add(motes);
   for (let i = 0; i < LAMPS; i++) {
     const l = new THREE.PointLight(0xffa060, 0, 10, 2);
     scene.add(l);
@@ -389,8 +387,6 @@ function frame() {
 
   sky.position.copy(camera.position);
   far.material.uniforms.uCamY.value = camera.position.y;
-  motes.material.uniforms.uCam.value.copy(camera.position);
-  motes.material.uniforms.uStreak.value = 0.15 + fall.v * 0.045;
   if (score) score.setFall(fall.phase === 'room' ? 0 : fall.v, dt);
 
   updateHud(dt);
