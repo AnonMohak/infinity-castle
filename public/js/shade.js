@@ -14,8 +14,8 @@ export const U = {
 // ---------------------------------------------------------------- shared GLSL
 export const GLSL_VOID = /* glsl */`
 vec3 voidColor(vec3 d) {
-  vec3 below = vec3(0.034, 0.016, 0.0072);   // the haze of a thousand lamps further down
-  vec3 level = vec3(0.0135, 0.0092, 0.0078); // warm dark haze across the castle
+  vec3 below = vec3(0.038, 0.0145, 0.006);   // the haze of a thousand lamps further down
+  vec3 level = vec3(0.0145, 0.0082, 0.0066); // warm, reddish dark haze across the castle
   vec3 above = vec3(0.0032, 0.0040, 0.0080);
   vec3 c = mix(level, below, smoothstep(0.05, -0.85, d.y));
   c += vec3(0.11, 0.05, 0.018) * pow(max(0.0, -d.y), 14.0);   // the bright core far below, where all the lamps gather

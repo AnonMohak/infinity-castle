@@ -120,11 +120,12 @@ export class Post {
             col += acc / 18.0 * uShaft * vec3(1.0, 0.82, 0.62);
           }
           col *= uExposure * (1.0 + 0.35 * uFlash);
+          col *= vec3(1.14, 0.9, 0.76);          // the whole castle a warmer, redder light
           col = aces(col);
-          // split tone: ink-blue shadows, amber light
+          // split tone: deep red shadows, red-amber light
           float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
-          col = mix(col, col * vec3(0.82, 0.92, 1.18), (1.0 - smoothstep(0.0, 0.22, l)) * 0.6);
-          col = mix(col, col * vec3(1.08, 0.98, 0.84), smoothstep(0.3, 0.9, l) * 0.45);
+          col = mix(col, col * vec3(1.12, 0.84, 0.82), (1.0 - smoothstep(0.0, 0.22, l)) * 0.55);
+          col = mix(col, col * vec3(1.1, 0.94, 0.8), smoothstep(0.3, 0.9, l) * 0.45);
           col = mix(vec3(l), col, 1.06);
           float vig = smoothstep(1.2, 0.25, length(dc * vec2(asp, 1.0)));
           col *= mix(0.42, 1.0, vig);
