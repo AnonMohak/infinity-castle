@@ -383,7 +383,7 @@ function frame() {
   const norm = Math.max(1, off / 0.9);
   cx = 0.5 + (cx - 0.5) / norm; cy = 0.5 + (cy - 0.5) / norm;
   cu.uCenter.value.set(cx, cy);
-  cu.uBlur.value = clamp(fall.v * 0.0017, 0, 0.09) * (0.35 + 0.65 * Math.abs(_fwd.y)) / norm;
+  cu.uBlur.value = clamp(fall.v * 0.001, 0, 0.055) * (0.35 + 0.65 * Math.abs(_fwd.y)) / norm;
 
   sky.position.copy(camera.position);
   far.material.uniforms.uCamY.value = camera.position.y;

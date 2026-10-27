@@ -278,7 +278,10 @@ const FRAG_SURFACE = /* glsl */`
       vec3 lc = mix(vec3(1.0, 0.42, 0.13), vec3(1.0, 0.13, 0.04), prm);
       sEmit = lc * glow * (0.25 + 1.3 * belly * belly) * (1.0 - 0.8 * rib) * flick;
       alb = paper * (1.0 - 0.7 * rib);
-    } else {                               // andon: paper in a square frame
+    } else if (prm > 2.5) {                // lamp point: a small hot dot, no frame
+      sEmit = vec3(1.0, 0.56, 0.24) * glow * 3.2 * flick;
+      alb = vec3(1.0, 0.85, 0.6);
+    } else {                               // andon and frame lanterns: paper in a frame
       float e = min(min(uv.x, fs.x - uv.x), min(uv.y, fs.y - uv.y));
       float wood = max(edgeAA(e, 0.025, px), lineAA(uv.y / fs.y * 2.0, 0.02, fw.y / fs.y * 2.0));
       sEmit = vec3(1.0, 0.5, 0.2) * glow * 1.5 * flick * (1.0 - wood);
