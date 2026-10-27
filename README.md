@@ -1,7 +1,7 @@
 # Infinity Castle
 
 A fan piece after Demon Slayer. Nakime's biwa sounds in the Ubuyashiki house and the floor opens. You fall
-into Mugen-jō, Muzan's fortress, with Tanjiro, Giyu, Shinobu and Zenitsu. Below you is an endless shaft of
+into Mugen-jō, Muzan's fortress, and you see it all through your own eyes. Below you is an endless shaft of
 rooms, stairs, bridges and lanterns. At every note of the biwa, rooms slide, turn over and change places, and
 shoji slam open and shut.
 
@@ -64,10 +64,6 @@ and the tatami in its floor slide apart under you.
   rooms with an overshooting ease and opens or shuts their shoji (door vertices slide in the vertex shader).
   Six real point lights follow the fall, borrowed from the nearest lanterns. The file also holds the debris
   (shoji, fusuma, tatami, planks and lanterns) tumbling alongside.
-- `js/corps.js`: the four falling figures. Jointed bodies in the black uniform, white belt and leg wraps.
-  Hair, haori and blade identify each one: ichimatsu checks, half plain and half kikkō, a butterfly wing,
-  white scales on yellow. Each figure has its own falling pose that sways in the wind. The haori and its wide
-  sleeves stream upward in the up-draft.
 - `js/post.js`: bloom, a radial smear towards the point you fall towards, the shock ring and chromatic
   fringe of a biwa note, ACES, a split-tone grade, vignette and grain.
 - `js/sound.js`: everything is made live with the Web Audio API. The biwa is plucked strings with a buzzing

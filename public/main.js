@@ -4,7 +4,6 @@ import * as THREE from 'three';
 import { LIB } from './js/kit.js';
 import { U, castleMaterial, makeEnv, voidSky, farLamps, dust } from './js/shade.js';
 import { Castle, Debris, pathAt, INTRO_Y } from './js/castle.js';
-import { Corps } from './js/corps.js';
 import { Post } from './js/post.js';
 import { Score } from './js/sound.js';
 
@@ -94,7 +93,7 @@ function toGeometry(r) {
 }
 
 // ---------------------------------------------------------------- scene
-let castle, debris, corps, sky, far, motes;
+let castle, debris, sky, far, motes;
 const lamps = [];
 const lampList = [];
 
@@ -106,7 +105,6 @@ async function build() {
   const env = makeEnv(renderer);
   castle = new Castle(scene, castleMaterial(env), pieces);
   debris = new Debris(castle);
-  corps = new Corps(scene, env);
   sky = voidSky();
   scene.add(sky);
   far = farLamps(9000, 900);
@@ -164,7 +162,7 @@ function updateCamera(t, dt) {
       strike(t, true);
       fall.dropAt = t + 0.4;
     }
-    if (t >= fall.dropAt) { fall.phase = 'drop'; fall.v = 0; corps.start(t, fallPos); }
+    if (t >= fall.dropAt) { fall.phase = 'drop'; fall.v = 0; }
   } else if (fall.phase === 'drop') {
     // the floor goes and gravity has you; the eyes go down with it
     fall.v = Math.min(fall.v + 9.8 * dt, 26);
@@ -340,7 +338,6 @@ function frame() {
     if (tr.doorT[1] && !tr.heard1) { tr.heard1 = true; score?.slide(0, 0.2); score?.knock(0.2, 0.2, -0.2); }
   }
   debris.update(dt, fallPos, fall.slow);
-  corps.update(t, dt, fallPos, fall.v);
   if (live && fall.phase === 'fall' && !STILL && t > nextStrike) {
     strike(t);
     nextStrike = t + 7 + Math.random() * 5;
@@ -409,7 +406,6 @@ function enter(withSound) {
     fall.y = +params.get('y');
     castle.intro.doorT[0] = 1;
     startFalling(t);
-    corps.start(t - 6, fallPos);
   } else if (!params.has('hold')) fall.strikeAt = t + 1.6;
 }
 
@@ -431,4 +427,4 @@ requestAnimationFrame(frame);
 if (params.has('auto')) enter(false);
 
 // debug hooks for tuning from the console
-window.__ic = { castle, corps, camera, fall, U, post, scene, renderer, strike: () => strike(t), lamps, slowmo: (s) => { timeScale = s; }, pose: (x, y, z, pitch = 0, yaw = 0) => { debugPose = { p: new THREE.Vector3(x, y, z), pitch, yaw }; }, get drawn() { return drawn; }, get t() { return t; } };
+window.__ic = { castle, camera, fall, U, post, scene, renderer, strike: () => strike(t), lamps, slowmo: (s) => { timeScale = s; }, pose: (x, y, z, pitch = 0, yaw = 0) => { debugPose = { p: new THREE.Vector3(x, y, z), pitch, yaw }; }, get drawn() { return drawn; }, get t() { return t; } };
