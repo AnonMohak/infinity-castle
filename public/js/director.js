@@ -22,6 +22,7 @@ export class Director {
       this.k = -1;
       this.end = 0;
       this.nextStrike = at.ch.strike ? t + at.ch.strike * 0.6 : Infinity;
+      this.released = false;
     }
     this.at = at;
     if (t > this.end) this.nextShot(t);
@@ -41,6 +42,7 @@ export class Director {
 
   // the speed the fall settles to here
   speed() {
+    if (this.released) return 16;   // after Nakime: let go, the next loop is coming up
     const { ch, u } = this.at;
     return ch.ease ? ch.ease + (ch.speed - ch.ease) * Math.min(1, u * 1.4) : ch.speed;
   }

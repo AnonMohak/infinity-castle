@@ -5,6 +5,7 @@ import { LIB } from './js/kit.js';
 import { U, castleMaterial, makeEnv, voidSky, farLamps } from './js/shade.js';
 import { Castle, Debris, pathAt, INTRO_Y } from './js/castle.js';
 import { Director } from './js/director.js';
+import { Nakime, Moment } from './js/nakime.js';
 import { Post } from './js/post.js';
 import { Score } from './js/sound.js';
 
@@ -94,7 +95,7 @@ function toGeometry(r) {
 }
 
 // ---------------------------------------------------------------- scene
-let castle, debris, sky, far;
+let castle, debris, sky, far, nakime, moment;
 const lamps = [];
 const lampList = [];
 
@@ -110,6 +111,8 @@ async function build() {
   scene.add(sky);
   far = farLamps(9000, 900);
   scene.add(far);
+  nakime = new Nakime(scene, await new THREE.TextureLoader().loadAsync('img/nakime.png'));
+  moment = new Moment(nakime);
   for (let i = 0; i < LAMPS; i++) {
     const l = new THREE.PointLight(0xffa060, 0, 10, 2);
     scene.add(l);
@@ -122,7 +125,7 @@ async function build() {
 const fall = {
   phase: 'room', y: INTRO_Y + EYE, v: 0, vt: FALL_SPEED, slow: 1,
   yaw: +(params.get('yaw') || 0), pitch: +(params.get('pitch') || 0.02), roll: 0, yawRate: 0,
-  shake: 0, manual: params.has('free'),
+  shake: 0, dz: 0, zoom: 0, manual: params.has('free'),
   strikeAt: Infinity, dropAt: Infinity,
 };
 const look = { mx: 0, my: 0, yaw: 0, pitch: 0, dragX: 0, dragY: 0 };
@@ -152,7 +155,13 @@ function updateCamera(t, dt) {
     fall.pitch = damp(fall.pitch, -1.32, 1.5, dt);
     fall.roll = damp(fall.roll, 0.1, 0.8, dt);
     if (fall.y < INTRO_Y - 16) startFalling(t);
+  } else if (fall.phase === 'nakime') {
+    // in front of her: the moment runs the camera until the floor opens
+    if (!moment.step(t, dt, fall, nakimeEvents)) { fall.phase = 'fall'; fall.v = 0; director.released = true; }
   } else {
+    // the platform below: stop in front of her
+    const P = castle.platforms.find((q) => !q.done && fall.y > q.stopY && fall.y - q.stopY < 22);
+    if (P && !STILL) { P.done = true; fall.phase = 'nakime'; moment.begin(t, fall, P); }
     // the director sets the speed and the shots of the chapter we are falling through
     director.update(INTRO_Y - fall.y, t);
     fall.vt = director.speed();
@@ -173,7 +182,7 @@ function updateCamera(t, dt) {
 
   pathAt(fall.y, _p);
   const sway = fall.phase === 'room' ? 0.05 : 0.4;
-  camera.position.set(_p.x + Math.sin(t * 0.23) * sway, fall.y, _p.z + Math.cos(t * 0.19) * sway);
+  camera.position.set(_p.x + Math.sin(t * 0.23) * sway, fall.y, _p.z + Math.cos(t * 0.19) * sway + fall.dz);
 
   const free = fall.manual;
   look.yaw = damp(look.yaw, -look.mx * (free ? Math.PI : 0.9) - look.dragX, 2.4, dt);
@@ -186,6 +195,9 @@ function updateCamera(t, dt) {
     fall.yaw + look.yaw + sh * 0.03 * Math.sin(t * 53 + 1),
     fall.roll + sh * 0.04 * Math.sin(t * 47 + 2));
   fall.shake = damp(fall.shake, 0, 3.5, dt);
+  // the lens: wide for the fall, closing to 30 degrees on Nakime
+  const fov = (camera.aspect < 0.8 ? 84 : 70) * (1 - fall.zoom) + 30 * fall.zoom;
+  if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   fallPos.copy(camera.position);
   if (debugPose) { camera.position.copy(debugPose.p); camera.rotation.set(debugPose.pitch, debugPose.yaw, 0); }
 }
@@ -216,6 +228,13 @@ function strike(t, intro = false) {
     if (intro) { score.slide(0.05, -0.3); score.slide(0.08, 0.3); }
   }
 }
+
+// Nakime: a low pulse as her bangs part, her strike (the loudest note), the floor opening under you
+const nakimeEvents = {
+  pulse: () => score?.thud(0, 0.32),
+  strike: () => { struckAt = t; flash = 1.25; gutter = 1; fall.shake = 0.6; pluck(1.5); },
+  open: () => { score?.slide(0, -0.3); score?.slide(0.05, 0.3); score?.knock(0.25, 0.25); },
+};
 
 // ---------------------------------------------------------------- input
 let live = false;
@@ -288,6 +307,10 @@ function frame() {
     if (tr.doorT[1] && !tr.heard1) { tr.heard1 = true; score?.slide(0, 0.2); score?.knock(0.2, 0.2, -0.2); }
   }
   debris.update(dt, fallPos, fall.slow);
+  // she is there only while her platform is near
+  const near = castle.platforms.find((q) => Math.abs(q.stopY - fallPos.y) < 160);
+  if (near && !moment.on) nakime.place(near.cardAt); else if (!near) nakime.hide();
+  nakime.update(t, U.uGlow.value);
   if (live && fall.phase === 'fall' && !STILL) {
     if (director.strikeDue(t)) strike(t);
     if (director.debris) { if (!debris.on) debris.start(fallPos); } else debris.stop();
@@ -377,4 +400,4 @@ requestAnimationFrame(frame);
 if (params.has('auto')) enter(false);
 
 // debug hooks for tuning from the console
-window.__ic = { castle, director, camera, fall, U, post, scene, renderer, strike: () => strike(t), lamps, slowmo: (s) => { timeScale = s; }, pose: (x, y, z, pitch = 0, yaw = 0) => { debugPose = { p: new THREE.Vector3(x, y, z), pitch, yaw }; }, get drawn() { return drawn; }, get t() { return t; } };
+window.__ic = { castle, director, nakime, moment, camera, fall, U, post, scene, renderer, strike: () => strike(t), lamps, slowmo: (s) => { timeScale = s; }, pose: (x, y, z, pitch = 0, yaw = 0) => { debugPose = { p: new THREE.Vector3(x, y, z), pitch, yaw }; }, get drawn() { return drawn; }, get t() { return t; } };

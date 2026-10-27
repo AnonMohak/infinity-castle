@@ -17,7 +17,7 @@ const CANYON = 26;              // in a canyon, cells whose centre is this near 
 const VOID = 63;                // in the void, this near the axis
 const TOP = INTRO_Y + 20;       // no cells above this: the void over the castle
 const CAP = { K1: 1400, 'K1~': 1400, K3: 2000, 'K3~': 2000, KD: 500, 'KD~': 500, LS4: 24, 'LS4~': 24, BR3: 40, BR4: 40,
-  WL: 24, 'WL~': 24, WH: 8, AF: 6, 'AF~': 6, AL: 6, RC: 2, RP: 40, LL: 20, trap: 4, mansion: 1 };
+  WL: 24, 'WL~': 24, WH: 8, AF: 6, 'AF~': 6, AL: 6, RC: 2, RP: 40, LL: 20, NP: 2, trap: 4, mansion: 1 };
 // a face block turns so its open side (+z) looks along one of these
 const DIRS = [[1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2], [0, 1, 0], [0, -1, Math.PI]];
 const QUARTERS = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
@@ -115,6 +115,7 @@ export class Castle {
     this.moving = new Set();
     this.traps = [];
     this.gates = [];          // hatches across the fall: each opens as the camera comes within reach above it
+    this.platforms = [];      // Nakime's platform: where the camera stops, where she kneels
     this.intro = null;
     this.cand = [];
   }
@@ -152,6 +153,7 @@ export class Castle {
       for (const it of s.list) this.remove(it);
       this.traps = this.traps.filter((t) => this.all.has(t));
       this.gates = this.gates.filter((t) => this.all.has(t));
+      this.platforms = this.platforms.filter((t) => this.all.has(t));
       this.segments.delete(k);
     }
   }
@@ -311,6 +313,17 @@ export class Castle {
         o.y = r(yBot + 12, yTop - 4);
         if (place('LL', q, this.centreFor('LL', q, o))) n++;
       }
+    }
+
+    // ---- Nakime's platform, hung near the bottom of the void: the camera stops over its hatch (D7) at her eye
+    // height, 4 m in front of her
+    for (const { y } of this.marks('nakime', [80], top, top - SEG)) {
+      const py = y + 6;
+      o.set(0, py, 0);
+      const it = this.add(seg, 'NP', 'set', up, this.centreFor('NP', up, o), rnd(), 1);
+      it.stopY = py + 0.95;
+      it.cardAt = new THREE.Vector3(0, py + 0.12, -4);
+      this.platforms.push(it);
     }
 
     // ---- across the canyon: bridges at the floor levels of the blocks, and long stairs

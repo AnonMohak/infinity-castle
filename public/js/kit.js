@@ -1206,7 +1206,44 @@ function redPillar(b, o) {
   for (let y = 8; y < H - 2; y += 16) b.lantern(w + 0.9, y, 0, { h: 0.6, r: 0.24, lod: o.lod });
 }
 
-const PIECES = { facade, pavilion, stair, bridge, lanternLine, frame, tower, hall, trap, mansion, debris, block, deck, longStair, wellTurn, wellHatch, atriumFloor, atriumLanterns, ringCeiling, redPillar };
+// ---------------------------------------------------------------- Nakime's platform
+function nakimePlatform(b, o) {
+  // a floor of polished boards hung in the void on four ropes; the apron hatch (D7) under the camera's stop at the
+  // origin, a dais of mats where she kneels 4 m behind it, a beam with a row of seven lanterns behind her
+  b.hex = true;
+  const X = 5, Z0 = -7, Z1 = 5, h = 1.5, T = 0.4;
+  b.box(-X, -T, Z0, X, 0, -h, M.PLANK, { grain: 0 });
+  b.box(-X, -T, h, X, 0, Z1, M.PLANK, { grain: 0 });
+  b.box(-X, -T, -h, -h, 0, h, M.PLANK, { grain: 0 });
+  b.box(h, -T, -h, X, 0, h, M.PLANK, { grain: 0 });
+  for (const sx of [-1, 1]) {
+    b.door = [sx * (h + 0.15), 0, 0, 0];
+    b.box(sx > 0 ? 0.01 : -h, -T + 0.05, -h, sx > 0 ? h : -0.01, -0.01, h, M.PLANK, { grain: 2, occ: false });
+    b.door = null;
+  }
+  // black edge beams, joists under the floor, the four ropes it hangs from
+  b.box(-X - 0.15, -T - 0.25, Z1 - 0.15, X + 0.15, 0.04, Z1 + 0.05, M.BLACK, { grain: 0 });
+  b.box(-X - 0.15, -T - 0.25, Z0 - 0.05, X + 0.15, 0.04, Z0 + 0.15, M.BLACK, { grain: 0 });
+  for (const sx of [-1, 1]) b.box(sx * X - 0.1, -T - 0.25, Z0, sx * X + 0.1, 0.04, Z1, M.BLACK, { grain: 2 });
+  for (let x = -X + 1.25; x < X; x += 2.5) b.box(x - 0.12, -T - 0.45, Z0, x + 0.12, -T, Z1, M.WOOD, { grain: 2, cell: 9, occ: false });
+  for (const [x, z] of [[-X, Z0], [X, Z0], [-X, Z1], [X, Z1]]) b.box(x - 0.03, 0, z - 0.03, x + 0.03, 60, z + 0.03, M.ROPE, { occ: false, cell: 9 });
+  // the dais of mats she kneels on
+  b.box(-1.2, 0, -5.2, 1.2, 0.12, -2.8, M.PLANK, { grain: 0 });
+  if (!o.lod) tatamiFloor(b, -0.95, 0.95, -5.0, -3.1, 0.12);
+  // the beam behind her and its lanterns
+  for (const sx of [-1, 1]) b.box(sx * (X - 0.3) - 0.15, 0, Z0 + 0.25, sx * (X - 0.3) + 0.15, 3.4, Z0 + 0.55, M.LACQUER, { grain: 1 });
+  b.box(-X, 3.1, Z0 + 0.25, X, 3.4, Z0 + 0.55, M.LACQUER, { grain: 0 });
+  for (let k = 0; k < 7; k++) b.lantern(-4.2 + k * 1.4, 2.35, Z0 + 0.4, { cord: 0.35, h: 0.66, r: 0.27, glow: 1.2, lod: o.lod });
+  // lamp points along the front and the sides
+  b.points(-X, X, 0.12, Z1 - 0.1, o.lod ? 2.0 : 0.6);
+  for (const sx of [-1, 1]) {
+    b.push().at(sx * (X - 0.1), 0, (Z0 + Z1) / 2).ry(Math.PI / 2);
+    b.points(-(Z1 - Z0) / 2, (Z1 - Z0) / 2, 0.12, 0, o.lod ? 2.0 : 0.6);
+    b.pop();
+  }
+}
+
+const PIECES = { facade, pavilion, stair, bridge, lanternLine, frame, tower, hall, trap, mansion, debris, block, deck, longStair, wellTurn, wellHatch, atriumFloor, atriumLanterns, ringCeiling, redPillar, nakimePlatform };
 
 // ---------------------------------------------------------------- the library
 export const LIB = [
@@ -1221,6 +1258,7 @@ export const LIB = [
   { name: 'AF', fn: 'atriumFloor' },
   { name: 'AL', fn: 'atriumLanterns' },
   { name: 'RC', fn: 'ringCeiling' },
+  { name: 'NP', fn: 'nakimePlatform' },
   { name: 'RP', fn: 'redPillar', o: { h: 4 * CELL } },
   { name: 'LL', fn: 'lanternLine', o: { len: 72, sag: 9, gap: 2.4, hex: true } },
   { name: 'trap', fn: 'trap' },
