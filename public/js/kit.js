@@ -1105,7 +1105,49 @@ function wellHatch(b, o) {
   }
 }
 
-const PIECES = { facade, pavilion, stair, bridge, lanternLine, frame, tower, hall, trap, mansion, debris, block, deck, longStair, wellTurn, wellHatch };
+// ---------------------------------------------------------------- the atrium
+const ATRIUM = 1.5 * CELL + 0.2;          // half the width of an atrium floor: three cells, up to the balconies
+
+function atriumFloor(b, o) {
+  // D4: the floor under an atrium, three cells across: boards and mats above, coffers below, an 8 m hatch in the
+  // middle whose two leaves slide away under the floor, a railing with lamp points round the hatch
+  b.hex = true;
+  const S = ATRIUM, h = 4.0, T = 0.6;
+  b.box(-S, -T, -S, -h, 0, S, M.PLANK, { grain: 0, cell: 3 });
+  b.box(h, -T, -S, S, 0, S, M.PLANK, { grain: 0, cell: 3 });
+  b.box(-h, -T, -S, h, 0, -h, M.PLANK, { grain: 0, cell: 3 });
+  b.box(-h, -T, h, h, 0, S, M.PLANK, { grain: 0, cell: 3 });
+  if (!o.lod) tatamiFloor(b, -S + 1.2, S - 1.2, -S + 1.2, S - 1.2, 0, (x, z) => Math.abs(x) < h + 1.6 && Math.abs(z) < h + 1.6);
+  for (let v = -S + 2.1; v < S - 0.5; v += 2.1) {
+    if (Math.abs(v) < h + 0.2) continue;
+    b.box(v - 0.08, -T - 0.25, -S, v + 0.08, -T, S, M.BLACK, { grain: 2, cell: 9, occ: false });
+    b.box(-S, -T - 0.25, v - 0.08, S, -T, v + 0.08, M.BLACK, { grain: 0, cell: 9, occ: false });
+  }
+  for (const sx of [-1, 1]) {
+    b.door = [sx * (h + 0.2), 0, 0, 0];
+    b.box(sx > 0 ? 0.01 : -h, -T + 0.05, -h, sx > 0 ? h : -0.01, -0.02, h, M.PLANK, { grain: 2, occ: false });
+    if (!o.lod) tatamiFloor(b, sx > 0 ? 0.01 : -h, sx > 0 ? h : -0.01, -h, h, -0.02);
+    b.door = null;
+  }
+  for (let q = 0; q < 4; q++) {
+    b.push().ry(q * Math.PI / 2);
+    b.box(-h - 0.15, -T - 0.05, h - 0.1, h + 0.15, 0.05, h + 0.15, M.BLACK, { grain: 0, occ: false });
+    railing(b, -h - 0.3, h + 0.3, 0, h + 0.45, { caps: 2, skipEnd: true, lod: o.lod, points: true });
+    b.pop();
+  }
+}
+
+function atriumLanterns(b, o) {
+  // large hexagonal lanterns hung on cords of every length in the open space of an atrium
+  b.hex = true;
+  const at = [-12.6, -4.2, 4.2, 12.6];
+  for (const x of at) for (const z of at) {
+    const cord = b.r(2, 9);
+    b.lantern(x, -cord - 0.55, z, { h: 0.95, r: 0.36, cord, glow: 1.2, range: 9, lod: o.lod });
+  }
+}
+
+const PIECES = { facade, pavilion, stair, bridge, lanternLine, frame, tower, hall, trap, mansion, debris, block, deck, longStair, wellTurn, wellHatch, atriumFloor, atriumLanterns };
 
 // ---------------------------------------------------------------- the library
 export const LIB = [
@@ -1117,6 +1159,8 @@ export const LIB = [
   { name: 'BR4', fn: 'bridge', o: { len: 4 * CELL, rail: 10, points: true } },
   { name: 'WL', fn: 'wellTurn' },
   { name: 'WH', fn: 'wellHatch' },
+  { name: 'AF', fn: 'atriumFloor' },
+  { name: 'AL', fn: 'atriumLanterns' },
   { name: 'trap', fn: 'trap' },
   { name: 'mansion', fn: 'mansion' },
   { name: 'd_shoji', fn: 'debris', o: { kind: 'shoji' } },
@@ -1126,7 +1170,7 @@ export const LIB = [
   { name: 'd_lantern', fn: 'debris', o: { kind: 'lantern' } },
 ];
 // far away, the same pieces with less in them
-for (const n of ['K1', 'K3', 'KD', 'LS4', 'WL']) {
+for (const n of ['K1', 'K3', 'KD', 'LS4', 'WL', 'AF']) {
   const s = LIB.find((e) => e.name === n);
   LIB.push({ name: n + '~', fn: s.fn, seedOf: n, o: { ...s.o, lod: true } });
 }

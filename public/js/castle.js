@@ -5,7 +5,7 @@
 // instance; each frame only the ones in view are packed into their InstancedMesh (far ones into the lighter twin).
 import * as THREE from 'three';
 import { CELL } from './kit.js';
-import { INTRO_Y, chapterAt, wanderAt } from './chapters.js';
+import { INTRO_Y, LEAD, LOOP, CHAPTERS, chapterAt, wanderAt } from './chapters.js';
 
 const TAU = Math.PI * 2;
 export const SEG = CELL * 6;    // metres of castle per segment: six cell rows
@@ -17,7 +17,7 @@ const CANYON = 26;              // in a canyon, cells whose centre is this near 
 const VOID = 63;                // in the void, this near the axis
 const TOP = INTRO_Y + 20;       // no cells above this: the void over the castle
 const CAP = { K1: 1400, 'K1~': 1400, K3: 2000, 'K3~': 2000, KD: 500, 'KD~': 500, LS4: 24, 'LS4~': 24, BR3: 40, BR4: 40,
-  WL: 24, 'WL~': 24, WH: 8, trap: 4, mansion: 1 };
+  WL: 24, 'WL~': 24, WH: 8, AF: 6, 'AF~': 6, AL: 6, trap: 4, mansion: 1 };
 // a face block turns so its open side (+z) looks along one of these
 const DIRS = [[1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2], [0, 1, 0], [0, -1, Math.PI]];
 const QUARTERS = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
@@ -156,6 +156,19 @@ export class Castle {
     }
   }
 
+  // the heights, on cell row boundaries, of depths `offsets` into chapter `id`, for every loop, that fall in (bot, top]
+  marks(id, offsets, top, bot) {
+    const ch = CHAPTERS.find((c) => c.id === id), out = [];
+    const first = Math.floor((INTRO_Y - top - LEAD - ch.from - ch.len) / LOOP), last = Math.floor((INTRO_Y - bot - LEAD - ch.from) / LOOP);
+    for (let L = Math.max(0, first); L <= last; L++) {
+      offsets.forEach((off, k) => {
+        const y = Math.round((INTRO_Y - (LEAD + L * LOOP + ch.from + off)) / CELL) * CELL;
+        if (y <= top && y > bot) out.push({ y, k });
+      });
+    }
+    return out;
+  }
+
   gate(it, y, reach = 30) {
     it.gateY = y; it.reach = reach;
     this.gates.push(it);
@@ -192,6 +205,7 @@ export class Castle {
       if (yc > TOP) continue;
       // the edge of a canyon is ragged: each cell has its own reach, so blocks jut out and fall back
       const here = this.openRow(j), open = here.open, openAbove = this.openRow(j - 1).open;
+      const atHere = chapterAt(INTRO_Y - yc), inverted = atHere.ch.id === 'atrium' && atHere.u >= 2 / 3;
       p.copy(here.p);
       const span = Math.ceil(here.reach / CELL) + 2;
       if (here.shape === 'well') {
@@ -223,7 +237,8 @@ export class Castle {
         } else if (yaw !== null) {
           // mostly upright; now and then upside down or on its side, always still facing the open
           const u = rnd();
-          const roll = u < 0.84 ? 0 : u < 0.93 ? Math.PI : (u < 0.965 ? 1 : -1) * Math.PI / 2;
+          let roll = u < 0.84 ? 0 : u < 0.93 ? Math.PI : (u < 0.965 ? 1 : -1) * Math.PI / 2;
+          if (here.shape === 'atrium') roll = inverted ? Math.PI : 0;
           const q = qe(0, yaw, roll);
           it = this.add(seg, 'K1', 'cell', q, this.centreFor('K1', q, o), rnd(), glow());
         } else {
@@ -243,6 +258,20 @@ export class Castle {
           this.add(seg, 'KD', 'deck', q, this.centreFor('KD', q, o), rnd(), glow());
         }
       }
+    }
+
+    // ---- the atria: a floor with a hatch under each (D4); lanterns hang from the top of the first two and stand
+    // up from the floor of the third, which is upside down
+    const flip = qe(Math.PI, 0, 0), up = new THREE.Quaternion();
+    for (const { y, k: n } of this.marks('atrium', [100, 200, 300], top, top - SEG)) {
+      const q = n === 2 ? flip : up;
+      o.set(0, y, 0);
+      this.gate(this.add(seg, 'AF', 'set', q, this.centreFor('AF', q, o), rnd(), 1), y);
+      if (n === 2) { o.set(0, y + 0.6, 0); this.add(seg, 'AL', 'set', flip, this.centreFor('AL', flip, o), rnd(), 1); }
+    }
+    for (const { y } of this.marks('atrium', [0, 100], top, top - SEG)) {
+      o.set(0, y, 0);
+      this.add(seg, 'AL', 'set', up, this.centreFor('AL', up, o), rnd(), 1);
     }
 
     // ---- across the canyon: bridges at the floor levels of the blocks, and long stairs
