@@ -1,5 +1,6 @@
 // Infinity Castle — sound, all made live with the Web Audio API: Nakime's biwa (plucked strings with the
-// buzz of the sawari bridge), the wind of the fall, a low drone, shoji slamming and rooms grinding into place.
+// buzz of the sawari bridge), the wind of the fall, shoji slamming, rooms grinding into place, a low pulse. Near silence
+// otherwise: no music, no drone; the biwa sounds only when a door opens under you.
 
 function noiseBuffer(ctx, sec) {
   const b = ctx.createBuffer(1, Math.floor(ctx.sampleRate * sec), ctx.sampleRate);
@@ -102,18 +103,20 @@ export class Score {
     this.whistleGain = ctx.createGain(); this.whistleGain.gain.value = 0;
     src.connect(whistle).connect(this.whistleGain).connect(this.bus);
     src.start(now);
-    // a drone under everything, E and B, breathing slowly
-    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 220;
-    const dg = ctx.createGain(); dg.gain.setValueAtTime(0, now); dg.gain.linearRampToValueAtTime(0.11, now + 8);
-    lp.connect(dg).connect(this.bus);
-    for (const [f, det] of [[41.2, -4], [41.2, 5], [61.74, 0], [82.41, 3]]) {
-      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = det;
-      const g = ctx.createGain(); g.gain.value = f > 60 ? 0.25 : 0.5;
-      o.connect(g).connect(lp); o.start(now);
+  }
+
+  // a low pulse, two beats like a heart, felt more than heard
+  pulse(delay = 0, vol = 0.34) {
+    const ctx = this.ctx;
+    for (const [d, v] of [[0, 1], [0.32, 0.7]]) {
+      const t = ctx.currentTime + delay + d;
+      const o = ctx.createOscillator();
+      o.frequency.setValueAtTime(58, t); o.frequency.exponentialRampToValueAtTime(36, t + 0.35);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol * v, t + 0.025); g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+      o.connect(g); g.connect(this.bus); g.connect(this.send);
+      o.start(t); o.stop(t + 0.55);
     }
-    const lfo = ctx.createOscillator(); lfo.frequency.value = 0.06;
-    const lg = ctx.createGain(); lg.gain.value = 0.045;
-    lfo.connect(lg).connect(dg.gain); lfo.start(now);
   }
 
   setFall(v, dt) {

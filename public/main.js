@@ -234,7 +234,7 @@ function strike(t, intro = false) {
 
 // Nakime: a low pulse as her bangs part, her strike (the loudest note), the floor opening under you
 const nakimeEvents = {
-  pulse: () => score?.thud(0, 0.32),
+  pulse: () => score?.pulse(0),
   strike: () => { struckAt = t; flash = 1.25; gutter = 1; fall.shake = 0.6; pluck(1.5); },
   open: () => { score?.slide(0, -0.3); score?.slide(0.05, 0.3); score?.knock(0.25, 0.25); },
 };
