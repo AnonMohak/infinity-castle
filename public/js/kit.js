@@ -735,6 +735,7 @@ function bridge(b, o) {
 
 function lanternLine(b, o) {
   // a rope sagging across the void with lanterns on it
+  if (o.hex) b.hex = true;
   const L = o.len, sag = o.sag, n = Math.max(8, Math.round(L / 1.2));
   const yAt = (x) => -sag * (1 - (2 * x / L) ** 2);
   for (let i = 0; i < n; i++) {
@@ -1147,7 +1148,65 @@ function atriumLanterns(b, o) {
   }
 }
 
-const PIECES = { facade, pavilion, stair, bridge, lanternLine, frame, tower, hall, trap, mansion, debris, block, deck, longStair, wellTurn, wellHatch, atriumFloor, atriumLanterns };
+// ---------------------------------------------------------------- the red ring ceiling and the void
+function ringCeiling(b, o) {
+  // the roof of the void, seen from below: rings of red lamps hung from it, each ring lower than the one outside
+  // it (a shallow cone), a ring of beams round the middle, and D5, the hatch you fall through, at its centre
+  b.hex = true;
+  const lod = o.lod, s = lod ? 0.2 : 0.11;
+  const drop = (r) => (60 - r) / 12 * 1.5;
+  for (const r of [12, 24, 36, 48, 60]) {
+    const y = -0.6 - drop(r), n = Math.round(2 * Math.PI * r / 1.15), seg = Math.max(24, Math.round(r * 1.2));
+    for (let k = 0; k < seg; k++) {
+      const a0 = 2 * Math.PI * k / seg, a1 = 2 * Math.PI * (k + 1) / seg;
+      b.beam([Math.cos(a0) * r, y + 0.12, Math.sin(a0) * r], [Math.cos(a1) * r, y + 0.12, Math.sin(a1) * r], 0.08, 0.08, M.BLACK);
+      if (k % 4 === 0) b.box(Math.cos(a0) * r - 0.012, y + 0.16, Math.sin(a0) * r - 0.012, Math.cos(a0) * r + 0.012, 0, Math.sin(a0) * r + 0.012, M.ROPE, { occ: false, cell: 9 });
+    }
+    for (let k = 0; k < n; k += lod ? 2 : 1) {
+      const a = 2 * Math.PI * k / n, x = Math.cos(a) * r, z = Math.sin(a) * r;
+      b.box(x - s, y - s, z - s, x + s, y + s, z + s, M.LANTERN, { param: 4, occ: false, cell: 9 });
+    }
+  }
+  // the ring of beams that hangs in the middle, with red lamps round it
+  const R = 6.5, yr = -0.6 - drop(R);
+  for (let k = 0; k < 24; k++) {
+    const a0 = 2 * Math.PI * k / 24, a1 = 2 * Math.PI * (k + 1) / 24;
+    b.beam([Math.cos(a0) * R, yr, Math.sin(a0) * R], [Math.cos(a1) * R, yr, Math.sin(a1) * R], 0.3, 0.4, M.LACQUER);
+    b.box(Math.cos(a0) * R - 0.02, yr, Math.sin(a0) * R - 0.02, Math.cos(a0) * R + 0.02, 0, Math.sin(a0) * R + 0.02, M.ROPE, { occ: false, cell: 9 });
+    const x = Math.cos(a0 + 0.13) * R, z = Math.sin(a0 + 0.13) * R;
+    b.box(x - s * 1.6, yr - 0.4 - s * 1.6, z - s * 1.6, x + s * 1.6, yr - 0.4 + s * 1.6, z + s * 1.6, M.LANTERN, { param: 4, occ: false, cell: 9 });
+  }
+  // D5: a frame filling the open cell above, with an 8 m hatch whose two leaves slide away into it
+  const C2 = CELL / 2 - 0.1, h = 4.0;
+  b.box(-C2, -0.5, -C2, -h, 0, C2, M.PLANK, { grain: 0 });
+  b.box(h, -0.5, -C2, C2, 0, C2, M.PLANK, { grain: 0 });
+  b.box(-h, -0.5, -C2, h, 0, -h, M.PLANK, { grain: 0 });
+  b.box(-h, -0.5, h, h, 0, C2, M.PLANK, { grain: 0 });
+  for (const sx of [-1, 1]) {
+    b.door = [sx * (h + 0.2), 0, 0, 0];
+    b.box(sx > 0 ? 0.01 : -h, -0.45, -h, sx > 0 ? h : -0.01, -0.05, h, M.LACQUER, { grain: 2, occ: false });
+    b.door = null;
+  }
+  for (let q = 0; q < 4; q++) {
+    b.push().ry(q * Math.PI / 2);
+    b.points(-h, h, -0.62, h + 0.25, lod ? 2.0 : 0.7);
+    b.pop();
+  }
+}
+
+function redPillar(b, o) {
+  // a red lacquer pillar many cells high, black bands round it, a string of lamps hung down one side
+  b.hex = true;
+  const H = o.h, w = 0.45;
+  b.box(-w, 0, -w, w, H, w, M.LACQUER, { grain: 1, cell: 4 });
+  for (let y = 4.2; y < H; y += 4.2) b.box(-w - 0.06, y - 0.15, -w - 0.06, w + 0.06, y + 0.15, w + 0.06, M.BLACK, { cell: 9, occ: false });
+  b.box(w + 0.25, 0, -0.012, w + 0.27, H, 0.012, M.ROPE, { occ: false, cell: 9 });
+  const s = o.lod ? 0.15 : 0.06;
+  for (let y = 0.6; y < H; y += o.lod ? 2.0 : 1.0) b.box(w + 0.26 - s, y - s, -s, w + 0.26 + s, y + s, s, M.LANTERN, { param: 3, occ: false, cell: 9 });
+  for (let y = 8; y < H - 2; y += 16) b.lantern(w + 0.9, y, 0, { h: 0.6, r: 0.24, lod: o.lod });
+}
+
+const PIECES = { facade, pavilion, stair, bridge, lanternLine, frame, tower, hall, trap, mansion, debris, block, deck, longStair, wellTurn, wellHatch, atriumFloor, atriumLanterns, ringCeiling, redPillar };
 
 // ---------------------------------------------------------------- the library
 export const LIB = [
@@ -1161,6 +1220,9 @@ export const LIB = [
   { name: 'WH', fn: 'wellHatch' },
   { name: 'AF', fn: 'atriumFloor' },
   { name: 'AL', fn: 'atriumLanterns' },
+  { name: 'RC', fn: 'ringCeiling' },
+  { name: 'RP', fn: 'redPillar', o: { h: 4 * CELL } },
+  { name: 'LL', fn: 'lanternLine', o: { len: 72, sag: 9, gap: 2.4, hex: true } },
   { name: 'trap', fn: 'trap' },
   { name: 'mansion', fn: 'mansion' },
   { name: 'd_shoji', fn: 'debris', o: { kind: 'shoji' } },

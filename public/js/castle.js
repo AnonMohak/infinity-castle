@@ -17,7 +17,7 @@ const CANYON = 26;              // in a canyon, cells whose centre is this near 
 const VOID = 63;                // in the void, this near the axis
 const TOP = INTRO_Y + 20;       // no cells above this: the void over the castle
 const CAP = { K1: 1400, 'K1~': 1400, K3: 2000, 'K3~': 2000, KD: 500, 'KD~': 500, LS4: 24, 'LS4~': 24, BR3: 40, BR4: 40,
-  WL: 24, 'WL~': 24, WH: 8, AF: 6, 'AF~': 6, AL: 6, trap: 4, mansion: 1 };
+  WL: 24, 'WL~': 24, WH: 8, AF: 6, 'AF~': 6, AL: 6, RC: 2, RP: 40, LL: 20, trap: 4, mansion: 1 };
 // a face block turns so its open side (+z) looks along one of these
 const DIRS = [[1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2], [0, 1, 0], [0, -1, Math.PI]];
 const QUARTERS = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
@@ -180,8 +180,10 @@ export class Castle {
     const yc = -(j + 0.5) * CELL;
     if (yc > TOP) return { shape: 'sky', open: () => true, reach: 0, p: new THREE.Vector3(0, yc, 0) };
     const p = pathAt(yc, new THREE.Vector3());
-    const shape = chapterAt(INTRO_Y - yc).ch.open;
+    let shape = chapterAt(INTRO_Y - yc).ch.open;
+    if (shape === 'canyon' && chapterAt(INTRO_Y - yc + CELL).ch.open === 'void') shape = 'ceiling';
     switch (shape) {
+      case 'ceiling': return { shape, open: (i, l) => i === 0 && l === 0, reach: VOID + 5, p };
       case 'well': return { shape, open: (i, l) => i === 0 && l === 0, reach: CELL, p };
       case 'atrium': return { shape, open: (i, l) => Math.abs(i) <= 1 && Math.abs(l) <= 1, reach: 2 * CELL, p };
       case 'void': return { shape, open: (i, l) => Math.hypot(i * CELL, l * CELL) <= VOID + jag(i, l, j) * 0.6, reach: VOID + 5, p };
@@ -204,7 +206,7 @@ export class Castle {
       const j = k * 6 + row, yc = -(j + 0.5) * CELL;
       if (yc > TOP) continue;
       // the edge of a canyon is ragged: each cell has its own reach, so blocks jut out and fall back
-      const here = this.openRow(j), open = here.open, openAbove = this.openRow(j - 1).open;
+      const here = this.openRow(j), open = here.open, openAbove = this.openRow(j - 1).open, openBelow = this.openRow(j + 1).open;
       const atHere = chapterAt(INTRO_Y - yc), inverted = atHere.ch.id === 'atrium' && atHere.u >= 2 / 3;
       p.copy(here.p);
       const span = Math.ceil(here.reach / CELL) + 2;
@@ -246,7 +248,7 @@ export class Castle {
           for (let di = -2; di <= 2 && !near; di++) for (let dl = -2; dl <= 2 && !near; dl++) {
             if (Math.abs(di) + Math.abs(dl) <= 2 && open(i + di, l + dl)) near = true;
           }
-          if (!near) continue;
+          if (!near && !openAbove(i, l) && !openBelow(i, l)) continue;
           const q = qe(0, pick(QUARTERS), 0);
           it = this.add(seg, 'K3', 'back', q, this.centreFor('K3', q, o), rnd(), glow());
         }
@@ -259,6 +261,16 @@ export class Castle {
         }
       }
     }
+
+    const mids = [];
+    const place = (name, q, c) => {
+      const t = this.types[name];
+      if (!this.clear(t, q, c)) return null;
+      if (mids.some((m) => m.c.distanceTo(c) < (m.type.radius + t.radius) * 0.4)) return null;
+      const it = this.add(seg, name, 'mid', q, c, rnd(), r(0.8, 1.15));
+      mids.push(it);
+      return it;
+    };
 
     // ---- the atria: a floor with a hatch under each (D4); lanterns hang from the top of the first two and stand
     // up from the floor of the third, which is upside down
@@ -274,16 +286,34 @@ export class Castle {
       this.add(seg, 'AL', 'set', up, this.centreFor('AL', up, o), rnd(), 1);
     }
 
+    // ---- the void: the red ring ceiling under the row that closes over it (D5), red pillars standing in it,
+    // lantern lines slung across it
+    const voidRows = [];
+    for (let row = 0; row < 6; row++) {
+      const j = k * 6 + row, sh = this.openRow(j).shape;
+      if (sh === 'ceiling') {
+        o.set(0, -(j + 1) * CELL, 0);
+        this.gate(this.add(seg, 'RC', 'set', up, this.centreFor('RC', up, o), rnd(), 1), o.y);
+      } else if (sh === 'void') voidRows.push(j);
+    }
+    if (voidRows.length) {
+      const yTop = -voidRows[0] * CELL, yBot = -(voidRows[voidRows.length - 1] + 1) * CELL;
+      for (let a = 0, n = 0; a < 20 && n < 5; a++) {
+        const ang = r(0, Math.PI * 2), rad = r(16, 52);
+        o.set(Math.cos(ang) * rad, r(yBot - 30, yTop - 50), Math.sin(ang) * rad);
+        const q = qe(0, pick(QUARTERS), 0);
+        if (this.openRow(Math.floor(-(o.y + 50) / CELL)).shape !== 'void') continue;
+        if (place('RP', q, this.centreFor('RP', q, o))) n++;
+      }
+      for (let a = 0, n = 0; a < 20 && n < 3; a++) {
+        const q = qe(0, r(0, Math.PI), 0), side = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
+        o.copy(side).multiplyScalar((rnd() < 0.5 ? -1 : 1) * r(9, 30));
+        o.y = r(yBot + 12, yTop - 4);
+        if (place('LL', q, this.centreFor('LL', q, o))) n++;
+      }
+    }
+
     // ---- across the canyon: bridges at the floor levels of the blocks, and long stairs
-    const mids = [];
-    const place = (name, q, c) => {
-      const t = this.types[name];
-      if (!this.clear(t, q, c)) return null;
-      if (mids.some((m) => m.c.distanceTo(c) < (m.type.radius + t.radius) * 0.4)) return null;
-      const it = this.add(seg, name, 'mid', q, c, rnd(), r(0.8, 1.15));
-      mids.push(it);
-      return it;
-    };
     for (let a = 0, n = 0; a < 14 && n < 3; a++) {
       const row = Math.floor(r(0, 6)), yb = -(k * 6 + row + 1) * CELL + 4.2 * Math.floor(r(0, 3));
       if (yb > TOP - 8 || Math.abs(yb - INTRO_Y) < 26 || !isCanyon(yb - 8) || !isCanyon(yb + 8)) continue;
