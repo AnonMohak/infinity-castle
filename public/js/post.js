@@ -73,7 +73,7 @@ export class Post {
       uniforms: {
         tScene: { value: null }, tBloom: { value: null },
         uTime: { value: 0 }, uRes: { value: new THREE.Vector2() }, uBlur: { value: 0 }, uCenter: { value: new THREE.Vector2(0.5, 0.5) },
-        uExposure: { value: 1.15 }, uBloom: { value: 0.55 }, uFade: { value: 0 }, uFlash: { value: 0 }, uShock: { value: 0 },
+        uExposure: { value: 0.78 }, uBloom: { value: 0.55 }, uFade: { value: 0 }, uFlash: { value: 0 }, uShock: { value: 0 },
       },
       vertexShader: FS_VERT,
       fragmentShader: /* glsl */`

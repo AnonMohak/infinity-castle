@@ -170,8 +170,8 @@ const FRAG_SURFACE = /* glsl */`
     vec3 gc = prm < 0.0 ? vec3(0.26, 0.38, 0.85) : vec3(1.0, 0.46, 0.15);
     float hot = 0.45 + 0.65 * exp(-pow((uv.y - 0.95) / 1.2, 2.0));
     float paper = 0.88 + 0.24 * nB;
-    sEmit = gc * g * 1.05 * hot * flick * paper * (1.0 - wood);
-    alb = mix(vec3(0.84, 0.78, 0.64), woodDark, wood);
+    sEmit = gc * g * 0.72 * hot * flick * paper * (1.0 - wood);
+    alb = mix(vec3(0.56, 0.5, 0.39), woodDark, wood);
     sRough = mix(0.9, 0.5, wood);
     sH = wood * 0.003;
   } else if (id == 4.0) {                  // tatami: rush along the mat, a cloth border on the long sides
