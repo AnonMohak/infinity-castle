@@ -124,6 +124,9 @@ const FRAG_SURFACE = /* glsl */`
     float st = vn(vec2(uv.x * 0.2 + seed * 3.0, uv.y * 30.0));
     alb = vec3(0.13, 0.07, 0.038) * (0.7 + 0.55 * n) * (0.85 + 0.3 * h11(seed * 13.1));
     alb *= 1.0 - 0.3 * smoothstep(0.5, 0.85, st) * (1.0 - smoothstep(0.02, 0.06, fw.y * 30.0));
+    // growth rings, wavering along the grain
+    float rings = 0.5 + 0.5 * sin(uv.y * 48.0 + fbm(vec2(uv.x * 0.7, uv.y * 2.5) + seed * 5.0) * 10.0);
+    alb *= 0.8 + 0.34 * mix(rings, 0.5, smoothstep(0.004, 0.02, fw.y));
     sRough = 0.5 + 0.25 * n;
     sH = st * 0.0025;
   } else if (id == 1.0) {                  // boards: polished, along u, staggered butt joints
@@ -135,6 +138,8 @@ const FRAG_SURFACE = /* glsl */`
     float n = nA;
     alb = vec3(0.30, 0.16, 0.08) * (0.6 + 0.5 * hh) * (0.78 + 0.38 * n);
     float gap = max(lineAA(uv.y / w, 0.025, fw.y / w), lineAA((uv.x + off) / 2.7, 0.003, fw.x / 2.7));
+    float fig = 0.5 + 0.5 * sin(fract(uv.y / w) * 30.0 + vn(vec2(uv.x * 0.9, row * 7.0)) * 8.0);
+    alb *= 0.82 + 0.3 * mix(fig, 0.5, smoothstep(0.003, 0.015, fw.y));
     alb *= 1.0 - 0.7 * gap;
     sRough = 0.2 + 0.18 * n + 0.35 * gap;
     sH = -gap * 0.003 + n * 0.0012;
@@ -291,6 +296,17 @@ const FRAG_SURFACE = /* glsl */`
   } else {                                 // rope
     alb = vec3(0.2, 0.15, 0.1);
     sRough = 0.95;
+  }
+  // age over everything solid: broad stains, soot running down, a fine grain; lit paper and lamps stay clean
+  if (id != 3.0 && id != 12.0 && id != 8.0) {
+    vec3 wp = vWPos;
+    float big = fbm(vec2(wp.x + wp.z, wp.y * 0.6) * 0.09 + seed * 3.0);
+    float run = vn(vec2((wp.x + wp.z * 0.7) * 1.6, wp.y * 0.1 + seed));
+    float fine = mix(vn(uv * vec2(16.0, 3.5) + seed * 11.0), 0.5, smoothstep(0.01, 0.05, px));
+    float age = (0.7 + 0.45 * big) * (1.0 - 0.3 * smoothstep(0.55, 0.9, run)) * (0.88 + 0.22 * fine);
+    alb *= age;
+    sRough = clamp(sRough + 0.18 * (1.0 - age), 0.0, 1.0);
+    sH += (fine - 0.5) * 0.0015;
   }
   diffuseColor.rgb = alb;
   sEmit += alb * vLight * glow * mix(0.5, 1.0, vMat.w);
