@@ -16,7 +16,8 @@ const CLEAR = 3.4;              // nothing comes nearer the line of the fall tha
 const CANYON = 26;              // in a canyon, cells whose centre is this near the line of the fall stay open
 const VOID = 63;                // in the void, this near the axis
 const TOP = INTRO_Y + 20;       // no cells above this: the void over the castle
-const CAP = { K1: 1400, 'K1~': 1400, K3: 2000, 'K3~': 2000, KD: 500, 'KD~': 500, LS4: 24, 'LS4~': 24, BR3: 40, BR4: 40, trap: 4, mansion: 1 };
+const CAP = { K1: 1400, 'K1~': 1400, K3: 2000, 'K3~': 2000, KD: 500, 'KD~': 500, LS4: 24, 'LS4~': 24, BR3: 40, BR4: 40,
+  WL: 24, 'WL~': 24, WH: 8, trap: 4, mansion: 1 };
 // a face block turns so its open side (+z) looks along one of these
 const DIRS = [[1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2], [0, 1, 0], [0, -1, Math.PI]];
 const QUARTERS = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
@@ -113,6 +114,7 @@ export class Castle {
     this.all = new Set();
     this.moving = new Set();
     this.traps = [];
+    this.gates = [];          // hatches across the fall: each opens as the camera comes within reach above it
     this.intro = null;
     this.cand = [];
   }
@@ -149,20 +151,28 @@ export class Castle {
       if (k >= cur - 1 && k <= cur + 3) continue;
       for (const it of s.list) this.remove(it);
       this.traps = this.traps.filter((t) => this.all.has(t));
+      this.gates = this.gates.filter((t) => this.all.has(t));
       this.segments.delete(k);
     }
+  }
+
+  gate(it, y, reach = 30) {
+    it.gateY = y; it.reach = reach;
+    this.gates.push(it);
+    return it;
   }
 
   // which cells of row j are open, and how far from the axis the open space reaches
   openRow(j) {
     const yc = -(j + 0.5) * CELL;
-    if (yc > TOP) return { open: () => true, reach: 0, p: new THREE.Vector3(0, yc, 0) };
+    if (yc > TOP) return { shape: 'sky', open: () => true, reach: 0, p: new THREE.Vector3(0, yc, 0) };
     const p = pathAt(yc, new THREE.Vector3());
-    switch (chapterAt(INTRO_Y - yc).ch.open) {
-      case 'well': return { open: (i, l) => i === 0 && l === 0, reach: CELL, p };
-      case 'atrium': return { open: (i, l) => Math.abs(i) <= 1 && Math.abs(l) <= 1, reach: 2 * CELL, p };
-      case 'void': return { open: (i, l) => Math.hypot(i * CELL, l * CELL) <= VOID + jag(i, l, j) * 0.6, reach: VOID + 5, p };
-      default: return { open: (i, l) => Math.hypot(i * CELL - p.x, l * CELL - p.z) <= CANYON + jag(i, l, j), reach: CANYON + 7, p };
+    const shape = chapterAt(INTRO_Y - yc).ch.open;
+    switch (shape) {
+      case 'well': return { shape, open: (i, l) => i === 0 && l === 0, reach: CELL, p };
+      case 'atrium': return { shape, open: (i, l) => Math.abs(i) <= 1 && Math.abs(l) <= 1, reach: 2 * CELL, p };
+      case 'void': return { shape, open: (i, l) => Math.hypot(i * CELL, l * CELL) <= VOID + jag(i, l, j) * 0.6, reach: VOID + 5, p };
+      default: return { shape, open: (i, l) => Math.hypot(i * CELL - p.x, l * CELL - p.z) <= CANYON + jag(i, l, j), reach: CANYON + 7, p };
     }
   }
 
@@ -184,6 +194,17 @@ export class Castle {
       const here = this.openRow(j), open = here.open, openAbove = this.openRow(j - 1).open;
       p.copy(here.p);
       const span = Math.ceil(here.reach / CELL) + 2;
+      if (here.shape === 'well') {
+        const q0 = new THREE.Quaternion();
+        if (j % 2 === 0 && this.openRow(j + 1).shape === 'well') {
+          o.set(0, -(j + 2) * CELL, 0);
+          this.add(seg, 'WL', 'set', q0, this.centreFor('WL', q0, o), rnd(), glow());
+        }
+        if (j % 6 === 0 && this.openRow(j - 1).shape === 'well') {
+          o.set(0, -j * CELL, 0);
+          this.gate(this.add(seg, 'WH', 'set', q0, this.centreFor('WH', q0, o), rnd(), 1), -j * CELL);
+        }
+      }
       const ci = Math.round(p.x / CELL), cl = Math.round(p.z / CELL);
       for (let i = ci - span; i <= ci + span; i++) for (let l = cl - span; l <= cl + span; l++) {
         if (open(i, l)) continue;
@@ -269,6 +290,7 @@ export class Castle {
       const it = this.add(seg, 'trap', 'trap', q, c, rnd(), 1.1);
       it.floorY = y;
       this.traps.push(it);
+      this.gate(it, y + 5.0, 26);
     }
     // ---- and at the top of it all, the room it begins in
     if (k === -1 && !this.intro) {
@@ -337,9 +359,9 @@ export class Castle {
     }
     // traps: the roof hatch opens as you come down on it, the floor hatch once you are inside
     let slow = 1;
+    for (const it of this.gates) if (camY < it.gateY + it.reach) it.doorT[0] = 1;
     for (const it of this.traps) {
       const fy = it.floorY, ty = fy + 5.0;
-      if (camY < ty + 26) it.doorT[0] = 1;
       if (camY < ty - 0.6) it.doorT[1] = 1;
       const inside = 1 - Math.min(1, Math.max(0, Math.abs(camY - (fy + 2.6)) - 2.6) / 4);
       slow = Math.min(slow, 1 - 0.68 * inside);

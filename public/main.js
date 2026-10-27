@@ -277,11 +277,14 @@ function frame() {
   updateCamera(t, dt);
   castle.update(fall.y);
   fall.slow = castle.tick(t, dt, fall.y);
-  for (const tr of castle.traps) {
-    if (tr.doorT[0] && !tr.heard0) {
-      tr.heard0 = true; score?.slide(0, 0); score?.knock(0.22, 0.2);
+  // every hatch that opens under you plays the biwa; the floor of a trap room only slides and knocks
+  for (const g of castle.gates) {
+    if (g.doorT[0] && !g.heard0) {
+      g.heard0 = true; score?.slide(0, 0); score?.knock(0.22, 0.2);
       if (live && fall.phase === 'fall') pluck(0.95);
     }
+  }
+  for (const tr of castle.traps) {
     if (tr.doorT[1] && !tr.heard1) { tr.heard1 = true; score?.slide(0, 0.2); score?.knock(0.2, 0.2, -0.2); }
   }
   debris.update(dt, fallPos, fall.slow);

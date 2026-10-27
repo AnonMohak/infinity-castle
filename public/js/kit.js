@@ -1039,7 +1039,73 @@ function longStair(b, o) {
   for (let i = 20; i < n - 10; i += 42) b.lantern(0, i * rise - 1.9, i * run, { cord: 0.8, lod, glow: o.glow ?? 1 });
 }
 
-const PIECES = { facade, pavilion, stair, bridge, lanternLine, frame, tower, hall, trap, mansion, debris, block, deck, longStair };
+// ---------------------------------------------------------------- the square stairwell
+const WELL_IN = 3.6, WELL_OUT = 6.25;   // the open core is 7.2 m across; the flights run in the band outside it
+
+function wellTurn(b, o) {
+  // one turn of the stairwell, two cells high: four flights of 24 steps round the open core, a landing with a
+  // lantern at each corner; flight k climbs along one side, and the next starts where it ends
+  b.hex = true;
+  const IN = WELL_IN, OUT = WELL_OUT, W = OUT - IN, zc = (IN + OUT) / 2, n = 24, H = CELL / 2, rise = H / n, run = 2 * IN / n, lod = o.lod;
+  for (let k = 0; k < 4; k++) {
+    b.push().ry(k * Math.PI / 2).at(0, k * H, 0);
+    if (!lod) {
+      for (let i = 0; i < n; i++) {
+        const x = -IN + i * run;
+        b.box(x - 0.02, (i + 1) * rise - 0.05, IN, x + run + 0.01, (i + 1) * rise, OUT, M.PLANK, { grain: 2, cell: 9, occ: false });
+        b.box(x - 0.02, i * rise, IN + 0.02, x, (i + 1) * rise - 0.05, OUT - 0.02, M.WOOD, { grain: 2, cell: 9, occ: false });
+      }
+    } else {
+      b.beam([-IN, rise / 2, zc], [IN, H + rise / 2, zc], W, 0.12, M.PLANK, { grain: 2 });
+    }
+    // the inner stringer, the boards under the flight, the handrail over the core with its lamp points
+    b.beam([-IN, -0.25, IN - 0.08], [IN, H - 0.25, IN - 0.08], 0.16, 0.55, M.BLACK);
+    b.beam([-IN, -0.42, zc], [IN, H - 0.42, zc], W, 0.06, M.PLANK, { grain: 2 });
+    b.beam([-IN, 1.0, IN + 0.05], [IN, H + 1.0, IN + 0.05], 0.09, 0.08, M.LACQUER);
+    for (let i = 0; i <= n; i += lod ? 12 : 4) {
+      const x = -IN + i * run;
+      b.box(x - 0.045, i * rise, IN, x + 0.045, i * rise + 1.0, IN + 0.1, M.LACQUER, { cell: 9, occ: false });
+    }
+    for (let i = 2; i < n; i += lod ? 8 : 3) {
+      const s = lod ? 0.14 : 0.055, x = -IN + i * run, y = i * rise + 1.12, z = IN + 0.05;
+      b.box(x - s, y - s, z - s, x + s, y + s, z + s, M.LANTERN, { param: 3, occ: false, cell: 9 });
+    }
+    // the landing it climbs to, with a lantern on a post at its inner corner
+    b.box(IN, H - 0.3, IN, OUT, H, OUT, M.PLANK, { grain: 0 });
+    b.box(IN + 0.35, H, IN + 0.35, IN + 0.45, H + 1.2, IN + 0.45, M.BLACK, { cell: 9, occ: false });
+    b.lantern(IN + 0.4, H + 1.55, IN + 0.4, { h: 0.5, r: 0.2, lod });
+    b.pop();
+  }
+}
+
+function wellHatch(b, o) {
+  // D3: a lattice floor across the core of the stairwell; its two leaves slide apart under the flights
+  b.hex = true;
+  const IN = WELL_IN;
+  for (const s of [-1, 1]) {
+    b.box(-IN - 0.3, -0.3, s * IN - 0.15, IN + 0.3, 0.06, s * IN + 0.15, M.BLACK, { grain: 0 });
+    b.box(s * IN - 0.15, -0.3, -IN - 0.3, s * IN + 0.15, 0.06, IN + 0.3, M.BLACK, { grain: 2 });
+  }
+  for (const sx of [-1, 1]) {
+    b.door = [sx * (IN + 0.2), 0, 0, 0];
+    const x0 = sx > 0 ? 0.01 : -IN + 0.1, x1 = sx > 0 ? IN - 0.1 : -0.01;
+    b.box(x0, -0.03, -IN + 0.1, x1, 0.02, IN - 0.1, M.SHOJI, { param: 0.55, grain: 0, cell: 9, occ: false });
+    if (!o.lod) {
+      for (let x = x0 + 0.6; x < x1 - 0.1; x += 0.6) b.box(x - 0.03, 0.02, -IN + 0.1, x + 0.03, 0.09, IN - 0.1, M.WOOD, { grain: 2, cell: 9, occ: false });
+      for (let z = -IN + 0.7; z < IN - 0.2; z += 0.6) b.box(x0, 0.02, z - 0.03, x1, 0.09, z + 0.03, M.WOOD, { grain: 0, cell: 9, occ: false });
+    }
+    b.box(sx > 0 ? 0.01 : -0.09, -0.06, -IN + 0.1, sx > 0 ? 0.09 : -0.01, 0.1, IN - 0.1, M.BLACK, { grain: 2, cell: 9, occ: false });
+    b.door = null;
+  }
+  for (const s of [-1, 1]) {
+    b.points(-IN, IN, 0.14, s * (IN + 0.3), o.lod ? 2.0 : 0.8);
+    b.push().ry(Math.PI / 2);
+    b.points(-IN, IN, 0.14, s * (IN + 0.3), o.lod ? 2.0 : 0.8);
+    b.pop();
+  }
+}
+
+const PIECES = { facade, pavilion, stair, bridge, lanternLine, frame, tower, hall, trap, mansion, debris, block, deck, longStair, wellTurn, wellHatch };
 
 // ---------------------------------------------------------------- the library
 export const LIB = [
@@ -1049,6 +1115,8 @@ export const LIB = [
   { name: 'LS4', fn: 'longStair', o: { steps: 168 } },
   { name: 'BR3', fn: 'bridge', o: { len: 3 * CELL, red: true, points: true } },
   { name: 'BR4', fn: 'bridge', o: { len: 4 * CELL, rail: 10, points: true } },
+  { name: 'WL', fn: 'wellTurn' },
+  { name: 'WH', fn: 'wellHatch' },
   { name: 'trap', fn: 'trap' },
   { name: 'mansion', fn: 'mansion' },
   { name: 'd_shoji', fn: 'debris', o: { kind: 'shoji' } },
@@ -1058,7 +1126,7 @@ export const LIB = [
   { name: 'd_lantern', fn: 'debris', o: { kind: 'lantern' } },
 ];
 // far away, the same pieces with less in them
-for (const n of ['K1', 'K3', 'KD', 'LS4']) {
+for (const n of ['K1', 'K3', 'KD', 'LS4', 'WL']) {
   const s = LIB.find((e) => e.name === n);
   LIB.push({ name: n + '~', fn: s.fn, seedOf: n, o: { ...s.o, lod: true } });
 }
