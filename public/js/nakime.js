@@ -119,6 +119,12 @@ export class Nakime {
     this.group.add(face);
   }
 
+  // send her textures to the GPU now, not on the frame she first appears
+  upload(renderer) {
+    const u = this.face.uniforms;
+    for (const t of [this.figure.uniforms.tMap.value, u.tShut.value, u.tOpen.value]) renderer.initTexture(t);
+  }
+
   // kneel at a point on the platform, facing +z
   place(p) { this.group.position.copy(p); this.base = p.clone(); this.group.visible = true; }
   hide() { this.group.visible = false; }

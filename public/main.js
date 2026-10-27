@@ -99,13 +99,37 @@ let castle, debris, sky, far, nakime, moment;
 const lamps = [];
 const lampList = [];
 
+// the castle's shader takes seconds to compile: start it on a stand-in mesh while the workers bake the kit
+function warmCastleShader(material) {
+  const g = new THREE.BufferGeometry();
+  for (const [name, n] of [['position', 3], ['normal', 3], ['aUv', 4], ['aMat', 4], ['aLight', 3], ['aDoor', 4]]) g.setAttribute(name, new THREE.BufferAttribute(new Float32Array(3 * n), n));
+  g.setAttribute('iData', new THREE.InstancedBufferAttribute(new Float32Array(4), 4));
+  const stand = new THREE.InstancedMesh(g, material, 1);
+  scene.add(stand);
+  // compiled for the target the scene really draws into, so the program is the one used later
+  renderer.setRenderTarget(post.rtScene);
+  const done = renderer.compileAsync(scene, camera);
+  renderer.setRenderTarget(null);
+  return done
+    .catch((err) => console.warn('early shader compile failed', err))
+    .finally(() => { scene.remove(stand); g.dispose(); });
+}
+
 async function build() {
   const t0 = performance.now();
+  // the real lights that follow the fall come first: the shader is compiled for their number
+  for (let i = 0; i < LAMPS; i++) {
+    const l = new THREE.PointLight(0xffa060, 0, 10, 2);
+    scene.add(l);
+    lamps.push(l);
+  }
+  const env = makeEnv(renderer);
+  const material = castleMaterial(env);
+  const warming = warmCastleShader(material);
   const baked = await bakeKit((d, n) => { enterBtn.textContent = `Building rooms ${d} / ${n}`; });
   const pieces = {};
   for (const [name, r] of Object.entries(baked)) pieces[name] = { geo: toGeometry(r), bounds: r.bounds, lights: r.lights };
-  const env = makeEnv(renderer);
-  castle = new Castle(scene, castleMaterial(env), pieces);
+  castle = new Castle(scene, material, pieces);
   debris = new Debris(castle);
   sky = voidSky();
   scene.add(sky);
@@ -113,11 +137,7 @@ async function build() {
   scene.add(far);
   nakime = new Nakime(scene, await new THREE.TextureLoader().loadAsync('img/nakime.png'));
   moment = new Moment(nakime);
-  for (let i = 0; i < LAMPS; i++) {
-    const l = new THREE.PointLight(0xffa060, 0, 10, 2);
-    scene.add(l);
-    lamps.push(l);
-  }
+  await warming;
   console.info(`castle built in ${(performance.now() - t0).toFixed(0)} ms`);
 }
 
@@ -412,7 +432,11 @@ camera.updateMatrixWorld();
 castle.pack(camera);
 enterBtn.textContent = 'Lighting the lamps';
 const tc = performance.now();
+// Nakime is hidden until her platform is near: show her for the warm-up, so her shaders do not compile mid-fall
+nakime.place(new THREE.Vector3(0, fall.y - 3, -2));
 await post.warm(scene, camera).catch((err) => console.warn('shader warm-up failed', err));
+nakime.upload(renderer);
+nakime.hide();
 console.info(`shaders compiled in ${(performance.now() - tc).toFixed(0)} ms`);
 enterBtn.disabled = false;
 enterBtn.textContent = 'Fall';

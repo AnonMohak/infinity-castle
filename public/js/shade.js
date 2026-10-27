@@ -24,13 +24,29 @@ vec3 voidColor(vec3 d) {
 float fogT(float dist) { return exp(-pow(dist * uFog, 1.25)); }
 `;
 
+// value noise from a small random texture: one filtered fetch instead of four hashes, which keeps the castle's
+// shader small enough to compile quickly, and the mipmaps soften it with distance for free
+const NOISE = (() => {
+  const S = 256, d = new Uint8Array(S * S * 4);
+  let a = 0x9e3779b9;
+  for (let i = 0; i < d.length; i++) { a ^= a << 13; a ^= a >>> 17; a ^= a << 5; d[i] = a & 255; }
+  const t = new THREE.DataTexture(d, S, S, THREE.RGBAFormat);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.magFilter = THREE.LinearFilter;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps = true;
+  t.needsUpdate = true;
+  return t;
+})();
+
 const GLSL_NOISE = /* glsl */`
+uniform sampler2D tNoise;
 float h11(float n) { return fract(sin(n * 127.1) * 43758.5453); }
 float h12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 float vn(vec2 p) {
   vec2 i = floor(p), f = fract(p);
-  vec2 u = f * f * (3.0 - 2.0 * f);
-  return mix(mix(h12(i), h12(i + vec2(1.0, 0.0)), u.x), mix(h12(i + vec2(0.0, 1.0)), h12(i + vec2(1.0, 1.0)), u.x), u.y);
+  f = f * f * (3.0 - 2.0 * f);
+  return texture2D(tNoise, (i + f + 0.5) / 256.0).r;
 }
 float fbm(vec2 p) {
   float s = 0.0, a = 0.5;
@@ -336,7 +352,7 @@ const FRAG_FOG = /* glsl */`
 export function castleMaterial(envMap) {
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6, metalness: 0, envMap, envMapIntensity: 1.0 });
   mat.onBeforeCompile = (sh) => {
-    Object.assign(sh.uniforms, U);
+    Object.assign(sh.uniforms, U, { tNoise: { value: NOISE } });
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>\n${VERT_PARS}`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_BEGIN}`)
