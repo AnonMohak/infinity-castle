@@ -1243,7 +1243,35 @@ function nakimePlatform(b, o) {
   }
 }
 
-const PIECES = { facade, pavilion, stair, bridge, lanternLine, frame, tower, hall, trap, mansion, debris, block, deck, longStair, wellTurn, wellHatch, atriumFloor, atriumLanterns, ringCeiling, redPillar, nakimePlatform };
+// ---------------------------------------------------------------- the first door
+function titleShoji(b, o) {
+  // D0: two leaves of lit paper in a black frame across the mouth of the castle, seen from above under the title;
+  // they slide apart at the first note of the biwa, and the fall begins
+  b.hex = true;
+  const h = 4.2;
+  for (const s of [-1, 1]) {
+    b.box(-h - 0.35, -0.25, s * h - 0.15, h + 0.35, 0.08, s * h + 0.2 * s, M.BLACK, { grain: 0 });
+    b.box(s * h - 0.15, -0.25, -h - 0.35, s * h + 0.2 * s, 0.08, h + 0.35, M.BLACK, { grain: 2 });
+  }
+  for (const sx of [-1, 1]) {
+    b.door = [sx * (h + 0.5), 0, 0, 0];
+    const x0 = sx > 0 ? 0.02 : -h, x1 = sx > 0 ? h : -0.02;
+    b.box(x0, -0.03, -h, x1, 0.03, h, M.SHOJI, { param: 1.0, grain: 0, cell: 9, occ: false });
+    b.box(sx > 0 ? 0.02 : -0.1, -0.05, -h, sx > 0 ? 0.1 : -0.02, 0.07, h, M.BLACK, { grain: 2, cell: 9, occ: false });
+    b.door = null;
+  }
+  for (const [x, z] of [[-h - 0.2, -h - 0.2], [h + 0.2, -h - 0.2], [-h - 0.2, h + 0.2], [h + 0.2, h + 0.2]]) {
+    b.box(x - 0.05, 0.08, z - 0.05, x + 0.05, 1.1, z + 0.05, M.BLACK, { cell: 9, occ: false });
+    b.lantern(x, 1.45, z, { h: 0.5, r: 0.2, lod: o.lod });
+  }
+  for (let q = 0; q < 4; q++) {
+    b.push().ry(q * Math.PI / 2);
+    b.points(-h, h, 0.16, h + 0.02, 0.6);
+    b.pop();
+  }
+}
+
+const PIECES = { facade, pavilion, stair, bridge, lanternLine, frame, tower, hall, trap, mansion, debris, block, deck, longStair, wellTurn, wellHatch, atriumFloor, atriumLanterns, ringCeiling, redPillar, nakimePlatform, titleShoji };
 
 // ---------------------------------------------------------------- the library
 export const LIB = [
@@ -1262,7 +1290,7 @@ export const LIB = [
   { name: 'RP', fn: 'redPillar', o: { h: 4 * CELL } },
   { name: 'LL', fn: 'lanternLine', o: { len: 72, sag: 9, gap: 2.4, hex: true } },
   { name: 'trap', fn: 'trap' },
-  { name: 'mansion', fn: 'mansion' },
+  { name: 'TS', fn: 'titleShoji' },
   { name: 'd_shoji', fn: 'debris', o: { kind: 'shoji' } },
   { name: 'd_fusuma', fn: 'debris', o: { kind: 'fusuma' } },
   { name: 'd_tatami', fn: 'debris', o: { kind: 'tatami' } },

@@ -13,7 +13,7 @@ import { Score } from './js/sound.js';
 const params = new URLSearchParams(location.search);
 const MAX_PR = Math.min(window.devicePixelRatio || 1, params.has('hq') ? 2 : 1.5);
 let pixelRatio = Math.min(MAX_PR, +(params.get('dpr') || 1));
-const EYE = 1.55;              // eye height in the Ubuyashiki room
+const TITLE_Y = INTRO_Y + 34;  // where the camera hangs under the title, in the dark over the roof of the castle
 const LAMPS = 6;               // real lights that follow the fall, borrowed from the nearest lanterns
 const FALL_SPEED = 17;         // metres per second, by default
 const STILL = params.has('still');
@@ -123,8 +123,8 @@ async function build() {
 
 // ---------------------------------------------------------------- the fall
 const fall = {
-  phase: 'room', y: INTRO_Y + EYE, v: 0, vt: FALL_SPEED, slow: 1,
-  yaw: +(params.get('yaw') || 0), pitch: +(params.get('pitch') || 0.02), roll: 0, yawRate: 0,
+  phase: 'title', y: TITLE_Y, v: 0, vt: FALL_SPEED, slow: 1,
+  yaw: +(params.get('yaw') || 0), pitch: +(params.get('pitch') || -1.2), roll: 0, yawRate: 0,
   shake: 0, dz: 0, zoom: 0, manual: params.has('free'),
   strikeAt: Infinity, dropAt: Infinity,
 };
@@ -139,13 +139,16 @@ function startFalling(t) {
 }
 
 function updateCamera(t, dt) {
-  if (fall.phase === 'room') {
-    fall.pitch = damp(fall.pitch, 0.02 + Math.sin(t * 0.4) * 0.012, 2, dt);
+  if (fall.phase === 'title') {
+    // hanging in the dark over the roof, looking down at the first door, turning slowly
+    fall.pitch = damp(fall.pitch, -1.2 + Math.sin(t * 0.4) * 0.02, 1.2, dt);
+    fall.yaw += 0.03 * dt;
     if (t >= fall.strikeAt) {
       fall.strikeAt = Infinity;
       castle.intro.doorT[0] = 1;
       strike(t, true);
-      fall.dropAt = t + 0.4;
+      document.body.classList.remove('titled');
+      fall.dropAt = t + 0.5;
     }
     if (t >= fall.dropAt) { fall.phase = 'drop'; fall.v = 0; }
   } else if (fall.phase === 'drop') {
@@ -181,7 +184,7 @@ function updateCamera(t, dt) {
   }
 
   pathAt(fall.y, _p);
-  const sway = fall.phase === 'room' ? 0.05 : 0.4;
+  const sway = fall.phase === 'title' ? 0.05 : 0.4;
   camera.position.set(_p.x + Math.sin(t * 0.23) * sway, fall.y, _p.z + Math.cos(t * 0.19) * sway + fall.dz);
 
   const free = fall.manual;
@@ -357,7 +360,7 @@ function frame() {
 
   sky.position.copy(camera.position);
   far.material.uniforms.uCamY.value = camera.position.y;
-  if (score) score.setFall(fall.phase === 'room' ? 0 : fall.v, dt);
+  if (score) score.setFall(fall.phase === 'title' ? 0 : fall.v, dt);
 
   fadeIn = live ? Math.min(1, fadeIn + dt / 2.0) : Math.min(0.4, fadeIn + dt / 3);
   cu.uFade.value = fadeIn * fadeIn;
@@ -379,7 +382,11 @@ function enter(withSound) {
     fall.y = +params.get('y');
     castle.intro.doorT[0] = 1;
     startFalling(t);
-  } else if (!params.has('hold')) fall.strikeAt = t + 1.6;
+  } else {
+    // the title, then the first note
+    document.body.classList.add('titled');
+    if (!params.has('hold')) fall.strikeAt = t + 4.2;
+  }
 }
 
 await build();

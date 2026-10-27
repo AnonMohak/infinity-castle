@@ -17,7 +17,7 @@ const CANYON = 26;              // in a canyon, cells whose centre is this near 
 const VOID = 63;                // in the void, this near the axis
 const TOP = INTRO_Y + 20;       // no cells above this: the void over the castle
 const CAP = { K1: 1400, 'K1~': 1400, K3: 2000, 'K3~': 2000, KD: 500, 'KD~': 500, LS4: 24, 'LS4~': 24, BR3: 40, BR4: 40,
-  WL: 24, 'WL~': 24, WH: 8, AF: 6, 'AF~': 6, AL: 6, RC: 2, RP: 40, LL: 20, NP: 2, trap: 4, mansion: 1 };
+  WL: 24, 'WL~': 24, WH: 8, AF: 6, 'AF~': 6, AL: 6, RC: 2, RP: 40, LL: 20, NP: 2, trap: 4, TS: 1 };
 // a face block turns so its open side (+z) looks along one of these
 const DIRS = [[1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2], [0, 1, 0], [0, -1, Math.PI]];
 const QUARTERS = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
@@ -364,11 +364,11 @@ export class Castle {
       this.traps.push(it);
       this.gate(it, y + 5.0, 26);
     }
-    // ---- and at the top of it all, the room it begins in
+    // ---- and at the mouth of it all, the first door (D0), under the title
     if (k === -1 && !this.intro) {
       const q = new THREE.Quaternion();
       const o2 = pathAt(INTRO_Y, new THREE.Vector3());
-      this.intro = this.add(null, 'mansion', 'intro', q, this.centreFor('mansion', q, o2), 0.3, 1);
+      this.intro = this.add(null, 'TS', 'intro', q, this.centreFor('TS', q, o2), 0.3, 1);
     }
     return seg;
   }
