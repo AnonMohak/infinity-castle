@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Infinity Castle</title>
+  <meta name="description" content="Fall through Mugen-jō, the Infinity Castle: endless rooms, lanterns and shoji that fold and refold at every note of Nakime's biwa.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23080403'/%3E%3Cpath d='M4 11h24M7 11l-2 3M25 11l2 3M9 11v14M23 11v14M6 25h20M12 15h8v6h-8z' fill='none' stroke='%23e8833a' stroke-width='1.6'/%3E%3Ccircle cx='16' cy='7' r='2' fill='%23c8361e'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- fonts never block the page: the system Mincho and mono stand in until (or unless) they arrive -->
+  <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@500;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <style>
+    /* Layout: full-bleed WebGL; a quiet HUD in the four corners; one centred veil to enter. */
+    :root {
+      --void: #080403;
+      --ink: #f1e4cc;
+      --dim: #a3896a;
+      --ember: #ec8a3e;
+      --vermilion: #c8361e;
+      --line: rgba(241, 228, 204, 0.16);
+      --f-display: 'Shippori Mincho B1', 'Hiragino Mincho ProN', 'Yu Mincho', Georgia, serif;
+      --f-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--void); color: var(--ink); overflow: hidden; }
+    body { font-family: var(--f-mono); -webkit-font-smoothing: antialiased; touch-action: none; user-select: none; }
+    canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+    /* ---------- veil ---------- */
+    #veil {
+      position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; text-align: center;
+      padding: 24px max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px));
+      background: radial-gradient(ellipse 70% 60% at 50% 55%, rgba(48, 20, 8, 0.45), rgba(6, 3, 2, 0.94) 72%);
+      transition: opacity 1.6s ease;
+    }
+    #veil.gone { opacity: 0; pointer-events: none; }
+    .card { max-width: 660px; display: grid; justify-items: center; gap: 18px; }
+    .kanji {
+      font-family: var(--f-display); font-weight: 800; font-size: clamp(54px, 13vw, 128px); line-height: 1;
+      letter-spacing: 0.12em; padding-left: 0.12em; color: var(--ink);
+      text-shadow: 0 0 36px rgba(236, 138, 62, 0.35), 0 0 2px rgba(236, 138, 62, 0.6);
+    }
+    .eyebrow { font-size: 11px; letter-spacing: 0.42em; text-transform: uppercase; color: var(--dim); padding-left: 0.42em; }
+    h1 {
+      margin: 0; font-family: var(--f-display); font-weight: 500; color: var(--ink);
+      font-size: clamp(18px, 3.4vw, 30px); letter-spacing: 0.5em; padding-left: 0.5em; line-height: 1.1; text-transform: uppercase;
+    }
+    .lede {
+      margin: 2px 0 0; font-family: var(--f-display); font-weight: 500; font-size: clamp(15px, 2.1vw, 19px);
+      line-height: 1.6; color: var(--ink); opacity: 0.84; max-width: 34ch; text-wrap: balance;
+    }
+    #enter {
+      margin-top: 10px; appearance: none; cursor: pointer; background: transparent; color: var(--ink);
+      border: 1px solid rgba(236, 138, 62, 0.55); padding: 15px 34px 15px calc(34px + 0.38em);
+      font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.38em; text-transform: uppercase;
+      transition: background 0.4s, border-color 0.4s, color 0.4s; min-width: 15em;
+    }
+    #enter:hover, #enter:focus-visible { background: rgba(236, 138, 62, 0.14); border-color: var(--ember); outline: none; }
+    #enter:disabled { opacity: 0.5; cursor: wait; }
+    .how { font-size: 11.5px; line-height: 1.9; color: var(--dim); letter-spacing: 0.06em; max-width: 50ch; margin: 4px 0 0; }
+    .how kbd { font-family: var(--f-mono); color: var(--ink); border: 1px solid var(--line); padding: 0 5px; border-radius: 2px; }
+    .how.touch { display: none; }
+    @media (hover: none) and (pointer: coarse) { .how.mouse { display: none; } .how.touch { display: block; } }
+    .fine { font-size: 10px; letter-spacing: 0.16em; color: rgba(163, 137, 106, 0.6); margin: 6px 0 0; }
+
+    /* ---------- HUD ---------- */
+    .hud { position: fixed; z-index: 10; pointer-events: none; opacity: 0; transition: opacity 2s ease 1.6s; text-shadow: 0 0 10px rgba(5, 3, 2, 0.9), 0 0 2px rgba(5, 3, 2, 0.8); }
+    body.live .hud { opacity: 1; }
+    body.nohud .hud { opacity: 0 !important; transition-delay: 0s; }
+    .tl { top: calc(22px + env(safe-area-inset-top, 0px)); left: max(24px, env(safe-area-inset-left, 0px)); }
+    .bl { bottom: calc(22px + env(safe-area-inset-bottom, 0px)); left: max(24px, env(safe-area-inset-left, 0px)); }
+    .br { bottom: calc(22px + env(safe-area-inset-bottom, 0px)); right: max(24px, env(safe-area-inset-right, 0px)); text-align: right; }
+    .tr { top: calc(22px + env(safe-area-inset-top, 0px)); right: max(24px, env(safe-area-inset-right, 0px)); text-align: right; }
+    .mark { font-family: var(--f-display); font-weight: 700; font-size: 22px; letter-spacing: 0.3em; color: var(--ink); opacity: 0.9; }
+    .sub2 { margin-top: 6px; font-size: 10.5px; letter-spacing: 0.3em; color: var(--dim); text-transform: uppercase; }
+    .readout { font-variant-numeric: tabular-nums; }
+    .readout .k { font-size: 10px; letter-spacing: 0.3em; color: var(--dim); text-transform: uppercase; }
+    .readout .v { margin-top: 6px; font-size: 15px; letter-spacing: 0.08em; color: var(--ink); }
+    .readout .v small { color: var(--dim); font-size: 11px; letter-spacing: 0.12em; }
+    .readout .rate { margin-top: 4px; font-size: 10.5px; color: var(--dim); letter-spacing: 0.12em; }
+    .tr button {
+      pointer-events: auto; cursor: pointer; appearance: none; background: none; border: 0; padding: 4px 0;
+      color: var(--dim); font-family: var(--f-mono); font-size: 10.5px; letter-spacing: 0.24em; text-transform: uppercase;
+    }
+    .tr button:hover, .tr button:focus-visible { color: var(--ink); outline: none; }
+    #biwa { display: inline-grid; justify-items: end; gap: 6px; }
+    #biwa .note { font-family: var(--f-display); font-size: 26px; color: var(--ink); opacity: 0.35; transition: opacity 1.4s ease, color 1.4s ease, text-shadow 1.4s ease; }
+    #biwa.struck .note { opacity: 1; color: #ffd7a8; text-shadow: 0 0 18px rgba(236, 138, 62, 0.9); transition: none; }
+    #biwa .k { font-size: 10px; letter-spacing: 0.3em; color: var(--dim); text-transform: uppercase; }
+
+    @media (max-width: 720px) {
+      .bl .rate, .sub2, #biwa .k { display: none; }
+      .readout .v { font-size: 13px; }
+      .mark { font-size: 18px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #veil, .hud { transition: none; }
+    }
+  </style>
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+  </script>
+</head>
+<body>
+  <canvas id="gl" aria-label="The Infinity Castle: an endless shaft of rooms, stairs and lanterns, seen while falling through it"></canvas>
+
+  <div id="veil">
+    <div class="card">
+      <div class="kanji" lang="ja">無限城</div>
+      <div class="eyebrow">Mugen-jō &middot; the fortress of Kibutsuji Muzan</div>
+      <h1>Infinity Castle</h1>
+      <p class="lede">The biwa sounds once and the floor is gone. Below: rooms without end, folding and refolding at every note.</p>
+      <button id="enter" type="button" disabled>Loading</button>
+      <p class="how mouse">
+        Sound on. Move the mouse to look. Scroll or <kbd>&uarr;</kbd> <kbd>&darr;</kbd> to fall faster or slower.
+        <kbd>Space</kbd> or click strikes the biwa. <kbd>C</kbd> frees the camera.
+      </p>
+      <p class="how touch">Sound on. Drag to look. Tap to strike the biwa.</p>
+      <p class="fine">A fan piece after Demon Slayer (Kimetsu no Yaiba)</p>
+    </div>
+  </div>
+
+  <div class="hud tl">
+    <div class="mark" lang="ja">無限城</div>
+    <div class="sub2">Mugen-jō &middot; Infinity Castle</div>
+  </div>
+
+  <div class="hud tr">
+    <button id="mute" type="button" aria-pressed="false">Sound on</button><br>
+    <button id="camBtn" type="button" aria-pressed="false">Camera: cinematic</button><br>
+    <button id="hide" type="button">Hide HUD</button>
+  </div>
+
+  <div class="hud bl readout">
+    <div class="k">Fallen</div>
+    <div class="v" id="depth">0 <small>m</small></div>
+    <div class="rate" id="rate">0 m/s</div>
+  </div>
+
+  <div class="hud br">
+    <div id="biwa">
+      <div class="note" lang="ja">琵琶</div>
+      <div class="k" id="notes">Strike the biwa</div>
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
