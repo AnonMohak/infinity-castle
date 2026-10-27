@@ -239,6 +239,17 @@ const nakimeEvents = {
   open: () => { score?.slide(0, -0.3); score?.slide(0.05, 0.3); score?.knock(0.25, 0.25); },
 };
 
+// the name of each chapter, for a few seconds as it begins
+const chapterEl = document.getElementById('chapter');
+let shownChapter = '', chapterTimer = 0;
+function showChapter(ch) {
+  chapterEl.querySelector('.ck').textContent = ch.jp;
+  chapterEl.querySelector('.ce').textContent = ch.name;
+  chapterEl.classList.add('on');
+  clearTimeout(chapterTimer);
+  chapterTimer = setTimeout(() => chapterEl.classList.remove('on'), 4200);
+}
+
 // ---------------------------------------------------------------- input
 let live = false;
 let dragging = null;
@@ -314,6 +325,10 @@ function frame() {
   const near = castle.platforms.find((q) => Math.abs(q.stopY - fallPos.y) < 160);
   if (near && !moment.on) nakime.place(near.cardAt); else if (!near) nakime.hide();
   nakime.update(t, U.uGlow.value);
+  if (live && fall.phase === 'fall' && director.at && !director.at.lead && director.key !== shownChapter) {
+    shownChapter = director.key;
+    showChapter(director.at.ch);
+  }
   if (live && fall.phase === 'fall' && !STILL) {
     if (director.strikeDue(t)) strike(t);
     if (director.debris) { if (!debris.on) debris.start(fallPos); } else debris.stop();

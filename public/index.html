@@ -70,6 +70,13 @@
     body.live .hud { opacity: 1; }
     .tl { top: calc(22px + env(safe-area-inset-top, 0px)); left: max(24px, env(safe-area-inset-left, 0px)); }
     .tr { top: calc(22px + env(safe-area-inset-top, 0px)); right: max(24px, env(safe-area-inset-right, 0px)); text-align: right; }
+    /* the name of each chapter as it begins, low on the left */
+    #chapter { position: fixed; z-index: 9; left: max(28px, env(safe-area-inset-left, 0px)); bottom: calc(30px + env(safe-area-inset-bottom, 0px));
+      display: grid; gap: 6px; pointer-events: none; opacity: 0; transform: translateY(6px); transition: opacity 1.6s ease, transform 1.6s ease;
+      text-shadow: 0 0 16px rgba(5, 3, 2, 0.95), 0 0 3px rgba(5, 3, 2, 0.9); }
+    #chapter.on { opacity: 1; transform: none; transition: opacity 1.2s ease, transform 1.2s ease; }
+    #chapter .ck { font-family: var(--f-display); font-weight: 700; font-size: 34px; letter-spacing: 0.24em; color: var(--ink); }
+    #chapter .ce { font-family: var(--f-mono); font-size: 10.5px; letter-spacing: 0.32em; color: var(--dim); text-transform: uppercase; }
     /* the title card: over the dark, before the first note */
     #title { position: fixed; inset: 0; z-index: 9; display: grid; place-content: center; justify-items: center; gap: 18px; pointer-events: none;
       opacity: 0; transition: opacity 1.6s ease; text-shadow: 0 0 30px rgba(5, 3, 2, 0.95), 0 0 6px rgba(5, 3, 2, 0.9); }
@@ -82,7 +89,7 @@
     }
     .tr button:hover, .tr button:focus-visible { color: var(--ink); outline: none; }
     @media (prefers-reduced-motion: reduce) {
-      #veil, .hud, #title { transition: none; }
+      #veil, .hud, #title, #chapter { transition: none; }
     }
   </style>
   <script type="importmap">
@@ -110,6 +117,11 @@
   <div id="title" aria-hidden="true">
     <div class="tk" lang="ja">無限城</div>
     <div class="te">Mugen-jō &middot; Infinity Castle</div>
+  </div>
+
+  <div id="chapter" aria-live="polite">
+    <div class="ck" lang="ja"></div>
+    <div class="ce"></div>
   </div>
 
   <div class="hud tr">
