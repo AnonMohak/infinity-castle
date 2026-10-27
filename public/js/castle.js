@@ -1,21 +1,22 @@
-// Infinity Castle — the world. An endless shaft of rooms, built a segment at a time below the fall, folded
-// and refolded at every note of the biwa. Every piece is an instance; each frame only the ones in view
-// are packed into their InstancedMesh (far ones into the lighter twin of their piece).
+// Infinity Castle — the world. One endless structure on a grid of 12.6 m cells, built six cell rows at a time
+// below the fall, with a canyon carved through it along the line of the fall. Blocks turn only in quarter and
+// half turns, so it stays one connected thing; the biwa turns them over in their cells. Every piece is an
+// instance; each frame only the ones in view are packed into their InstancedMesh (far ones into the lighter twin).
 import * as THREE from 'three';
-import { FH } from './kit.js';
+import { CELL } from './kit.js';
 
 const TAU = Math.PI * 2;
-export const SEG = 72;          // metres of castle per segment
+export const SEG = CELL * 6;    // metres of castle per segment: six cell rows
 export const INTRO_Y = 30;      // the floor of the Ubuyashiki room
 const LOD_DIST = 55;
 const FAR_CULL = 290;            // past this the fog has it all
 const CLEAR = 3.4;              // nothing comes nearer the line of the fall than this
-
-const WALL = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7'];
-const MID = ['B1', 'B2', 'S1', 'S2', 'S3', 'S3', 'L1', 'L2', 'L1', 'P1', 'P2', 'P3', 'C1', 'T2', 'R1', 'H1', 'H1'];
-const LONG = new Set(['B1', 'B2', 'S1', 'S2', 'S3', 'L1', 'L2', 'C1']);
-const FAR = ['F1', 'F2', 'F4', 'F5', 'F7', 'T1', 'T1', 'T2', 'P1', 'P3', 'R1', 'C1', 'F6', 'H1'];
-const CAP = { trap: 4, mansion: 1, R1: 48, T1: 48, T2: 48 };
+const CANYON = 26;              // cells whose centre is this near the line of the fall stay open
+const TOP = INTRO_Y + 20;       // no cells above this: the void over the castle
+const CAP = { K1: 1000, 'K1~': 1000, K3: 1600, 'K3~': 1600, KD: 500, 'KD~': 500, LS4: 24, 'LS4~': 24, BR3: 40, BR4: 40, trap: 4, mansion: 1 };
+// a face block turns so its open side (+z) looks along one of these
+const DIRS = [[1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2], [0, 1, 0], [0, -1, Math.PI]];
+const QUARTERS = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
 
 // the line the fall follows: a slow wander, so the shaft never lines up into a tube
 export function pathAt(y, out = new THREE.Vector3()) {
@@ -33,7 +34,14 @@ function mulberry32(a) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const easeOutBack = (u) => { const c1 = 1.15, c3 = c1 + 1; return 1 + c3 * (u - 1) ** 3 + c1 * (u - 1) ** 2; };
+// how far past the canyon edge a cell reaches, in metres (-7 to +7), the same every time for the same cell
+function jag(i, l, j) {
+  let h = Math.imul(i, 73856093) ^ Math.imul(l, 19349663) ^ Math.imul(j, 83492791);
+  h = Math.imul(h ^ (h >>> 13), 0x5bd1e995);
+  h ^= h >>> 15;
+  return ((h >>> 0) / 4294967296 - 0.5) * 14;
+}
+const easeOutBack =(u) => { const c1 = 1.15, c3 = c1 + 1; return 1 + c3 * (u - 1) ** 3 + c1 * (u - 1) ** 2; };
 
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _o = new THREE.Vector3(), _p = new THREE.Vector3();
 const _q = new THREE.Quaternion(), _m = new THREE.Matrix4(), _pm = new THREE.Matrix4();
@@ -130,9 +138,9 @@ export class Castle {
   // ---------------------------------------------------------------- segments
   update(camY) {
     const cur = Math.floor(-camY / SEG);
-    for (let k = cur - 2; k <= cur + 4; k++) if (!this.segments.has(k)) this.segments.set(k, this.build(k));
+    for (let k = cur - 1; k <= cur + 3; k++) if (!this.segments.has(k)) this.segments.set(k, this.build(k));
     for (const [k, s] of this.segments) {
-      if (k >= cur - 2 && k <= cur + 4) continue;
+      if (k >= cur - 1 && k <= cur + 3) continue;
       for (const it of s.list) this.remove(it);
       this.traps = this.traps.filter((t) => this.all.has(t));
       this.segments.delete(k);
@@ -144,89 +152,103 @@ export class Castle {
     const r = (a = 0, b = 1) => a + (b - a) * rnd();
     const pick = (a) => a[Math.floor(rnd() * a.length) % a.length];
     const seg = { k, list: [] };
-    const top = -k * SEG, bot = top - SEG;
-    const axis = new THREE.Vector3();
-    const ext = new THREE.Vector3();
+    const top = -k * SEG;
+    const p = new THREE.Vector3(), pa = new THREE.Vector3(), o = new THREE.Vector3();
+    const glow = () => (rnd() < 0.12 ? r(0.15, 0.4) : r(0.75, 1.15));
 
-    // ---- the wall: façades facing the fall, stacked, now and then upside down or on their side
-    const R = r(14, 21);
-    const S = Math.max(5, Math.round(TAU * R / 15.5));
-    const chord = 2 * R * Math.sin(Math.PI / S) + 3;
-    const phase = r(0, TAU);
-    for (let j = 0; j < S; j++) {
-      if (rnd() < 0.12) continue;                 // a gap: the far castle shows through
-      const th = phase + (j + r(-0.1, 0.1)) / S * TAU;
-      const dir = new THREE.Vector3(Math.sin(th), 0, Math.cos(th));
-      let y = top - r(0, 6);
-      for (let guard = 0; guard < 14 && y > bot; guard++) {
-        const roll = rnd() < 0.62 ? 0 : rnd() < 0.55 ? Math.PI : (rnd() < 0.5 ? 1 : -1) * Math.PI / 2;
-        const q = qe(0, th + Math.PI, roll);
-        let name = null;
-        for (let a = 0; a < 6 && !name; a++) {
-          const n = pick(WALL);
-          if (2 * extents(this.types[n].half, q, ext).x <= chord) name = n;
+    // ---- the cells: open near the line of the fall, a face block where a cell looks into the open,
+    // a closed block one step further back, nothing deeper (it is never seen)
+    for (let row = 0; row < 6; row++) {
+      const j = k * 6 + row, yc = -(j + 0.5) * CELL;
+      if (yc > TOP) continue;
+      pathAt(yc, p);
+      pathAt(yc + CELL, pa);
+      // the edge of the canyon is ragged: each cell has its own reach, so blocks jut out and fall back
+      const open = (i, l) => Math.hypot(i * CELL - p.x, l * CELL - p.z) <= CANYON + jag(i, l, j);
+      const openAbove = (i, l) => yc + CELL > TOP || Math.hypot(i * CELL - pa.x, l * CELL - pa.z) <= CANYON + jag(i, l, j - 1);
+      const span = Math.ceil(CANYON / CELL) + 2;
+      const ci = Math.round(p.x / CELL), cl = Math.round(p.z / CELL);
+      for (let i = ci - span; i <= ci + span; i++) for (let l = cl - span; l <= cl + span; l++) {
+        if (open(i, l)) continue;
+        let yaw = null, bd = 1e9;
+        for (const [di, dl, a] of DIRS) {
+          if (!open(i + di, l + dl)) continue;
+          const d = Math.hypot((i + di) * CELL - p.x, (l + dl) * CELL - p.z);
+          if (d < bd) { bd = d; yaw = a; }
         }
-        if (!name) { y -= 4; continue; }
-        const t = this.types[name];
-        extents(t.half, q, ext);
-        const yc = y - ext.y;
-        pathAt(yc, axis);
-        const c = axis.clone().addScaledVector(dir, R + r(-1, 3) + t.half.z);
-        c.y = yc;
-        this.add(seg, name, 'ring', q, c, rnd(), rnd() < 0.15 ? r(0.15, 0.45) : r(0.75, 1.15));
-        y = yc - ext.y - (rnd() < 0.2 ? r(6, 16) : r(0.3, 3));
+        o.set(i * CELL, yc, l * CELL);
+        let it;
+        if (yaw !== null && rnd() < 0.2) {
+          // a closed block in the face of the canyon: timber walls and lattice windows between the verandas
+          const q = qe(0, yaw, 0);
+          it = this.add(seg, 'K3', 'back', q, this.centreFor('K3', q, o), rnd(), glow());
+        } else if (yaw !== null) {
+          // mostly upright; now and then upside down or on its side, always still facing the open
+          const u = rnd();
+          const roll = u < 0.84 ? 0 : u < 0.93 ? Math.PI : (u < 0.965 ? 1 : -1) * Math.PI / 2;
+          const q = qe(0, yaw, roll);
+          it = this.add(seg, 'K1', 'cell', q, this.centreFor('K1', q, o), rnd(), glow());
+        } else {
+          let near = false;
+          for (let di = -2; di <= 2 && !near; di++) for (let dl = -2; dl <= 2 && !near; dl++) {
+            if (Math.abs(di) + Math.abs(dl) <= 2 && open(i + di, l + dl)) near = true;
+          }
+          if (!near) continue;
+          const q = qe(0, pick(QUARTERS), 0);
+          it = this.add(seg, 'K3', 'back', q, this.centreFor('K3', q, o), rnd(), glow());
+        }
+        it.o = o.clone();
+        // a cell with open space above it shows its roof: a railing with lamps all round
+        if (openAbove(i, l)) {
+          const q = qe(0, pick(QUARTERS), 0);
+          o.y = yc + CELL / 2;
+          this.add(seg, 'KD', 'deck', q, this.centreFor('KD', q, o), rnd(), glow());
+        }
       }
     }
 
-    // ---- across the void: bridges, stairs, lantern lines, rooms hanging at any angle
+    // ---- across the canyon: bridges at the floor levels of the blocks, and long stairs
     const mids = [];
-    const nMid = 4 + Math.floor(r(0, 4));
-    for (let a = 0; a < nMid * 6 && mids.length < nMid; a++) {
-      const name = pick(MID), t = this.types[name];
-      const y = r(bot + 6, top - 6);
-      if (k < 0 && Math.abs(y - INTRO_Y) < 26) continue;
-      pathAt(y, axis);
-      let q, c;
-      if (LONG.has(name)) {
-        const vertical = rnd() < 0.22;
-        q = qe(0, r(0, TAU), vertical ? (rnd() < 0.5 ? 1 : -1) * Math.PI / 2 : 0);
-        const side = Z.clone().applyQuaternion(q);
-        side.y = 0;
-        if (side.lengthSq() < 1e-4) side.set(1, 0, 0);
-        side.normalize();
-        c = axis.clone().addScaledVector(side, (rnd() < 0.5 ? -1 : 1) * r(4.6, 11));
-        c.y = y;
-      } else {
-        const turn = pick([qe(0, 0, 0), qe(0, 0, 0), qe(Math.PI, 0, 0), qe(0, 0, Math.PI / 2), qe(0, 0, -Math.PI / 2), qe(Math.PI / 2, 0, 0)]);
-        q = qe(0, r(0, TAU), 0).multiply(turn);
-        const ang = r(0, TAU), dist = r(7, Math.max(8, R - 3));
-        c = axis.clone().add(new THREE.Vector3(Math.cos(ang) * dist, 0, Math.sin(ang) * dist));
-      }
-      if (!this.clear(t, q, c)) continue;
-      if (mids.some((m) => m.c.distanceTo(c) < (m.type.radius + t.radius) * 0.6)) continue;
-      mids.push(this.add(seg, name, 'mid', q, c, rnd(), rnd() < 0.15 ? r(0.2, 0.5) : r(0.8, 1.15)));
+    const place = (name, q, c) => {
+      const t = this.types[name];
+      if (!this.clear(t, q, c)) return null;
+      if (mids.some((m) => m.c.distanceTo(c) < (m.type.radius + t.radius) * 0.4)) return null;
+      const it = this.add(seg, name, 'mid', q, c, rnd(), r(0.8, 1.15));
+      mids.push(it);
+      return it;
+    };
+    for (let a = 0, n = 0; a < 14 && n < 3; a++) {
+      const row = Math.floor(r(0, 6)), yb = -(k * 6 + row + 1) * CELL + 4.2 * Math.floor(r(0, 3));
+      if (yb > TOP - 8 || Math.abs(yb - INTRO_Y) < 26) continue;
+      pathAt(yb, p);
+      const alongX = rnd() < 0.5, off = (rnd() < 0.5 ? -1 : 1) * r(5.5, 14);
+      const q = qe(0, alongX ? 0 : Math.PI / 2, 0);
+      o.set(p.x + (alongX ? 0 : off), yb, p.z + (alongX ? off : 0));
+      for (const name of ['BR4', 'BR3']) if (place(name, q, this.centreFor(name, q, o))) { n++; break; }
     }
-
-    // ---- far off: more of the same, any way up, in the haze
-    const fars = [];
-    for (let a = 0; a < 60 && fars.length < 22; a++) {
-      const name = pick(FAR), t = this.types[name];
-      const ang = r(0, TAU), dist = r(38, 125), y = r(bot, top);
-      pathAt(y, axis);
-      const roll = rnd() < 0.6 ? 0 : rnd() < 0.5 ? Math.PI : (rnd() < 0.5 ? 1 : -1) * Math.PI / 2;
-      const q = qe(rnd() < 0.15 ? Math.PI / 2 : 0, r(0, TAU), roll);
-      const c = axis.clone().add(new THREE.Vector3(Math.cos(ang) * dist, 0, Math.sin(ang) * dist));
-      c.y = y;
-      if (fars.some((m) => m.c.distanceTo(c) < (m.type.radius + t.radius) * 0.7)) continue;
-      fars.push(this.add(seg, name, 'far', q, c, rnd(), r(0.7, 1.2)));
+    if (rnd() < 0.85) {
+      for (let a = 0; a < 8; a++) {
+        const row = Math.floor(r(0, 3)), yb = -(k * 6 + row + 3) * CELL;
+        if (yb + 42 > TOP - 8 || Math.abs(yb - INTRO_Y) < 60) continue;
+        pathAt(yb + 21, p);
+        const q = qe(0, pick(QUARTERS), 0);
+        const dir = new THREE.Vector3(0, 0, 1).applyQuaternion(q), side = new THREE.Vector3(1, 0, 0).applyQuaternion(q);
+        const off = (rnd() < 0.5 ? -1 : 1) * r(6, 13), L = this.types.LS4.half.z;
+        // the middle step of the flight sits beside the line of the fall
+        o.copy(p).addScaledVector(side, off).addScaledVector(dir, -L);
+        o.y = yb;
+        if (place('LS4', q, this.centreFor('LS4', q, o))) break;
+      }
     }
 
     // ---- every other segment, a room right across the fall: it opens as you reach it
     if (k > 0 && k % 2 === 1) {
       const y = top - SEG * 0.5;
-      const q = qe(0, r(0, TAU), 0);
+      const q = qe(0, pick(QUARTERS), 0);
       const c = this.centreFor('trap', q, pathAt(y, new THREE.Vector3()));
-      for (const m of mids) if (Math.abs(m.c.y - y) < 16 + extents(m.type.half, m.q, ext).y) { this.remove(m); seg.list.splice(seg.list.indexOf(m), 1); }
+      for (const m of [...mids]) {
+        if (Math.abs(m.c.y - y) < 16 + extents(m.type.half, m.q, _w).y) { this.remove(m); seg.list.splice(seg.list.indexOf(m), 1); }
+      }
       const it = this.add(seg, 'trap', 'trap', q, c, rnd(), 1.1);
       it.floorY = y;
       this.traps.push(it);
@@ -234,8 +256,8 @@ export class Castle {
     // ---- and at the top of it all, the room it begins in
     if (k === -1 && !this.intro) {
       const q = new THREE.Quaternion();
-      const o = pathAt(INTRO_Y, new THREE.Vector3());
-      this.intro = this.add(null, 'mansion', 'intro', q, this.centreFor('mansion', q, o), 0.3, 1);
+      const o2 = pathAt(INTRO_Y, new THREE.Vector3());
+      this.intro = this.add(null, 'mansion', 'intro', q, this.centreFor('mansion', q, o2), 0.3, 1);
     }
     return seg;
   }
@@ -244,7 +266,7 @@ export class Castle {
   strike(cam, now) {
     const cands = [];
     for (const it of this.all) {
-      if ((it.kind !== 'ring' && it.kind !== 'mid') || it.anim) continue;
+      if (it.kind !== 'cell' || it.anim) continue;
       const d = it.c.distanceTo(cam);
       if (d < 90 && d > it.type.radius * 0.4 + 5) cands.push(it);
     }
@@ -262,7 +284,7 @@ export class Castle {
     // the shoji of the rooms around fly open or shut
     let doors = 0;
     for (const it of this.all) {
-      if (it.kind !== 'ring' && it.kind !== 'mid' && it.kind !== 'far') continue;
+      if (it.kind !== 'cell' && it.kind !== 'back') continue;
       if (it.c.distanceTo(cam) > 110 || Math.random() > 0.55) continue;
       it.doorT[0] = it.doorT[0] > 0.5 ? 0 : 1;
       it.doorDelay = now + Math.random() * 0.4;
@@ -272,23 +294,12 @@ export class Castle {
   }
 
   move(it) {
-    for (let tries = 0; tries < 5; tries++) {
-      const q = it.q.clone(), c = it.c.clone(), u = Math.random(), sg = Math.random() < 0.5 ? -1 : 1;
-      if (it.kind === 'ring') {
-        if (u < 0.5) c.y += sg * FH * (1 + Math.floor(Math.random() * 3));
-        else if (u < 0.78) q.premultiply(qa(Z.clone().applyQuaternion(it.q), Math.PI));       // turned over
-        else c.addScaledVector(X.clone().applyQuaternion(it.q), sg * (4 + Math.random() * 6));  // along the wall
-      } else {
-        if (u < 0.38) q.premultiply(qa(Y, sg * Math.PI / 2));
-        else if (u < 0.7) c.addScaledVector(X.clone().applyQuaternion(it.q), sg * (4 + Math.random() * 7));
-        else if (u < 0.85) c.y += sg * (5 + Math.random() * 8);
-        else q.premultiply(qa(Math.random() < 0.5 ? X : Z, Math.PI));
-      }
-      const ey = extents(it.type.half, q, _w).y;
-      const nearTrap = this.traps.some((tr) => Math.abs(c.y - tr.floorY - 2.5) < ey + 6 && Math.hypot(c.x - tr.c.x, c.z - tr.c.z) < it.type.radius + 9.5);
-      if (!nearTrap && this.clear(it.type, q, c)) return { q, c };
-    }
-    return null;
+    // a face block turns about the line it looks along: over (a half turn) or onto its side (a quarter turn),
+    // so it stays in its cell and keeps its open side to the canyon
+    const axis = Z.clone().applyQuaternion(it.q);
+    const a = Math.random() < 0.6 ? Math.PI : (Math.random() < 0.5 ? 1 : -1) * Math.PI / 2;
+    const q = qa(axis, a).multiply(it.q);
+    return { q, c: this.centreFor(it.type.name, q, it.o) };
   }
 
   // ---------------------------------------------------------------- per frame

@@ -63,6 +63,7 @@ export class Builder {
     this.door = null;         // [dx, dy, dz, channel]: how far the vertices being emitted slide when open
     this.group = 0;           // tags occluders, so a surface never occludes itself
     this.lod = false;         // the far twin: coarse grids, plain lamps
+    this.hex = false;         // lanterns are hexagonal frames (the castle of the film), not round chochin
   }
   r(a = 0, b = 1) { return a + (b - a) * this.rnd(); }
   chance(p) { return this.rnd() < p; }
@@ -217,6 +218,7 @@ export class Builder {
 
   // chochin: a ribbed paper barrel between two black rims, hung on a cord; the lamp sits at its centre
   lantern(x, y, z, o = {}) {
+    if (this.hex && !o.round) return this.hexLantern(x, y, z, o);
     const h = o.h ?? 0.66, r = o.r ?? 0.27, seg = 12, tint = o.tint ?? 0;
     if (this.lod || o.lod) {
       this.box(x - r * 0.8, y - h / 2, z - r * 0.8, x + r * 0.8, y + h / 2, z + r * 0.8, M.LANTERN, { param: tint, occ: false });
@@ -233,6 +235,38 @@ export class Builder {
     if (o.cord) this.box(-0.012, h / 2 + 0.05, -0.012, 0.012, h / 2 + 0.05 + o.cord, 0.012, M.ROPE, { occ: false, cell: 9 });
     this.pop();
     this.light(x, y, z, tint > 0.5 ? RED : WARM, (o.power ?? 1.8) * (o.glow ?? 1), o.range ?? 7.5);
+  }
+
+  // a hexagonal frame lantern: six paper panels in black frames, a cap and a foot
+  hexLantern(x, y, z, o = {}) {
+    const h = (o.h ?? 0.66) * 1.05, r = Math.max(0.22, o.r ?? 0.27) * 0.95, tint = o.tint ?? 0;
+    if (this.lod || o.lod) {
+      this.box(x - r * 0.8, y - h / 2, z - r * 0.8, x + r * 0.8, y + h / 2, z + r * 0.8, M.LANTERN, { param: 2, occ: false });
+      this.light(x, y, z, tint > 0.5 ? RED : WARM, (o.power ?? 1.8) * (o.glow ?? 1), o.range ?? 7.5);
+      return;
+    }
+    this.push().at(x, y, z);
+    const ap = r * 0.866;
+    for (let k = 0; k < 6; k++) {
+      this.push().ry(k * Math.PI / 3);
+      this.box(-r / 2, -h / 2, ap - 0.012, r / 2, h / 2, ap + 0.012, M.LANTERN, { param: 2, grain: 0, cell: 9, occ: false });
+      this.box(r / 2 - 0.018, -h / 2, ap - 0.03, r / 2 + 0.018, h / 2, ap + 0.03, M.BLACK, { cell: 9, occ: false });
+      this.pop();
+    }
+    this.lathe([[0.001, h / 2], [r * 1.12, h / 2], [r * 0.95, h / 2 + 0.07], [0.001, h / 2 + 0.11]], 6, M.BLACK);
+    this.lathe([[0.001, -h / 2 - 0.06], [r * 0.9, -h / 2 - 0.06], [r * 1.05, -h / 2], [0.001, -h / 2]], 6, M.BLACK);
+    if (o.cord) this.box(-0.012, h / 2 + 0.1, -0.012, 0.012, h / 2 + 0.1 + o.cord, 0.012, M.ROPE, { occ: false, cell: 9 });
+    this.pop();
+    this.light(x, y, z, tint > 0.5 ? RED : WARM, (o.power ?? 1.8) * (o.glow ?? 1), o.range ?? 7.5);
+  }
+
+  // lamp points: small hot dots in a row along x, the thousands of lights strung over the castle
+  points(x0, x1, y, z, step = 1.0) {
+    const s = this.lod ? 0.14 : 0.055, n = Math.max(1, Math.round((x1 - x0) / step));
+    for (let i = 0; i <= n; i++) {
+      const x = x0 + (x1 - x0) * i / n;
+      this.box(x - s, y - s, z - s, x + s, y + s, z + s, M.LANTERN, { param: 3, occ: false, cell: 9 });
+    }
   }
 
   // ---------------------------------------------------------------- the bake
@@ -428,6 +462,7 @@ function railing(b, x0, x1, y, z, o = {}) {
   b.box(x0 - 0.1, y + H - 0.02, z - 0.075, x1 + 0.1, y + H + 0.07, z + 0.075, mat, { grain: 0, cell: 2 });
   if (!o.lod) b.box(x0, y + H * 0.48, z - 0.035, x1, y + H * 0.48 + 0.06, z + 0.035, mat, { grain: 0, cell: 2 });
   b.box(x0, y + 0.05, z - 0.06, x1, y + 0.13, z + 0.06, mat, { grain: 0, cell: 2 });
+  if (o.points) b.points(x0 + 0.5, x1 - 0.5, y + H + 0.14, z, o.lod ? 2.0 : 1.0);
 }
 
 function andon(b, x, y, z, glow, lod) {
@@ -510,10 +545,10 @@ function roof(b, w, d, h, ridge, o = {}) {
 // ---------------------------------------------------------------- façade: storeys of veranda and room
 function storey(b, s) {
   const { W, bays, y, back, glow, lod } = s;
-  const top = y + FH - SLAB;
+  const top = y + FH - SLAB, e = s.edge ?? 0.4;
   // floor: polished boards from the railing to the back wall, a black edge beam in front
-  b.box(-W / 2 - 0.4, y - SLAB, back - 0.2, W / 2 + 0.4, y, 0.6, M.PLANK, { grain: 0 });
-  b.box(-W / 2 - 0.5, y - SLAB - 0.16, 0.52, W / 2 + 0.5, y - 0.04, 0.7, M.BLACK, { grain: 0 });
+  b.box(-W / 2 - e, y - SLAB, back - 0.2, W / 2 + e, y, 0.6, M.PLANK, { grain: 0 });
+  b.box(-W / 2 - e - 0.1 * (e >= 0.4), y - SLAB - 0.16, 0.52, W / 2 + e + 0.1 * (e >= 0.4), y - 0.04, 0.7, M.BLACK, { grain: 0 });
   if (!lod) tatamiFloor(b, -W / 2 + 0.12, W / 2 - 0.12, back + 0.08, -VER - 0.1, y);
   // pillars on the veranda edge and on the shoji line; brackets under the head beam
   for (let i = 0; i <= bays; i++) {
@@ -525,10 +560,12 @@ function storey(b, s) {
       b.box(x - 0.5, top - 0.56, -0.13, x + 0.5, top - 0.44, 0.13, M.WOOD, { cell: 9 });
     }
   }
-  b.box(-W / 2 - 0.3, top - 0.44, -0.18, W / 2 + 0.3, top, 0.18, M.WOOD, { grain: 0 });
+  b.box(-W / 2 - Math.min(0.3, e), top - 0.44, -0.18, W / 2 + Math.min(0.3, e), top, 0.18, M.WOOD, { grain: 0 });
   // veranda ceiling joists
   if (!lod) for (let x = -W / 2 + 0.33; x < W / 2; x += 0.66) b.box(x - 0.05, top - 0.13, -VER + 0.14, x + 0.05, top, 0.55, M.WOOD, { grain: 2, cell: 9, occ: false });
-  railing(b, -W / 2, W / 2, y, 0.38, { caps: 2, mat: s.rail, lod });
+  railing(b, -W / 2, W / 2, y, 0.38, { caps: 2, mat: s.rail, lod, points: s.points });
+  // a row of lamp points along the eave of the veranda as well
+  if (s.points) b.points(-W / 2 + 0.3, W / 2 - 0.3, top - 0.5, 0.2, lod ? 2.0 : 1.0);
 
   // the shoji line: sill, panels on two tracks, lintel, transom, beam, plaster
   b.box(-W / 2, y, -VER - 0.07, W / 2, y + 0.05, -VER + 0.07, M.WOOD, { grain: 0 });
@@ -688,10 +725,11 @@ function stair(b, o) {
 
 function bridge(b, o) {
   const L = o.len, w = 3.0, rail = o.rail ?? M.LACQUER;
+  if (o.points) b.hex = true;
   b.box(-L / 2, -0.22, -w / 2, L / 2, 0, w / 2, M.PLANK, { grain: 0 });
   for (const sz of [-1, 1]) b.box(-L / 2 - 0.1, -0.62, sz * w / 2 - 0.12, L / 2 + 0.1, -0.04, sz * w / 2 + 0.08, M.BLACK, { grain: 0 });
   for (let x = -L / 2 + 1; x < L / 2; x += 2) b.box(x - 0.12, -0.56, -w / 2, x + 0.12, -0.22, w / 2, M.WOOD, { grain: 2, cell: 9 });
-  for (const sz of [-1, 1]) railing(b, -L / 2, L / 2, 0, sz * (w / 2 - 0.12), { caps: 3, mat: rail, step: 1.0 });
+  for (const sz of [-1, 1]) railing(b, -L / 2, L / 2, 0, sz * (w / 2 - 0.12), { caps: 3, mat: rail, step: 1.0, points: o.points, lod: o.lod });
   for (let x = -L / 2 + 3; x < L / 2 - 1; x += 6) b.lantern(x, -1.3, 0, { cord: 0.45, glow: o.glow ?? 1, tint: o.red && (x / 6) % 2 ? 1 : 0 });
 }
 
@@ -792,6 +830,7 @@ function hall(b, o) {
 function trap(b) {
   // a room the fall passes straight through: a hatch in its roof (door channel 0) and one in its floor (channel 1)
   const S = 6.5, top = 5.0, hw = 2.85, glow = 1.15;
+  b.hex = true;
   // floor around the hole, with mats
   b.box(-S, -SLAB, -S, -hw, 0, S, M.PLANK, { grain: 0 });
   b.box(hw, -SLAB, -S, S, 0, S, M.PLANK, { grain: 0 });
@@ -886,35 +925,130 @@ function debris(b, o) {
   if (o.kind === 'fusuma') b.box(-0.43, -1.15, -0.02, 0.43, 1.15, 0.02, M.FUSUMA, { param: b.pick([0, 1, 2]), grain: 0, cell: 9 });
   if (o.kind === 'tatami') b.box(-0.475, -0.03, -0.95, 0.475, 0.03, 0.95, M.TATAMI, { cell: 9 });
   if (o.kind === 'plank') b.box(-1.7, -0.035, -0.12, 1.7, 0.035, 0.12, M.PLANK, { grain: 0, cell: 9 });
-  if (o.kind === 'lantern') b.lantern(0, 0, 0, { cord: 0.3, power: 1.0 });
+  if (o.kind === 'lantern') { b.hex = true; b.lantern(0, 0, 0, { cord: 0.3, power: 1.0 }); }
 }
 
-const PIECES = { facade, pavilion, stair, bridge, lanternLine, frame, tower, hall, trap, mansion, debris };
+// ---------------------------------------------------------------- the grid: one cell of the castle
+export const CELL = 12.6;     // three storeys high, six bays and a joint wide
+
+function frameFace(b, len, h, o = {}) {
+  // a closed timber wall along x, outside towards +z: posts every bay, a band at every floor,
+  // plaster panels and lit lattice windows between them, lamp points along some of the bands
+  const bays = Math.max(1, Math.round(len / BAY)), bw = len / bays;
+  const floors = Math.max(1, Math.round(h / FH)), fh = h / floors;
+  for (let i = 0; i <= bays; i++) {
+    const x = -len / 2 + i * bw;
+    b.box(x - 0.13, 0, -0.02, x + 0.13, h, 0.1, M.WOOD, { grain: 1, occ: false, cell: 4 });
+  }
+  for (let k = 0; k <= floors; k++) {
+    const y = k * fh;
+    b.box(-len / 2, Math.max(0, y - 0.17), -0.02, len / 2, Math.min(h, y + 0.17), 0.14, M.WOOD, { grain: 0, occ: false, cell: 4 });
+    if (o.points && k > 0 && k < floors && b.chance(0.6)) b.points(-len / 2 + 0.6, len / 2 - 0.6, y + 0.3, 0.2, o.lod ? 3.0 : 2.0);
+  }
+  for (let i = 0; i < bays; i++) for (let k = 0; k < floors; k++) {
+    const xa = -len / 2 + i * bw + 0.13, xb = xa + bw - 0.26, y0 = k * fh + 0.17, y1 = (k + 1) * fh - 0.17;
+    const u = b.rnd();
+    if (u < 0.42) {
+      const g = (b.chance(0.25) ? 0.04 : b.r(0.35, 1.0)) * (o.glow ?? 1);
+      b.box(xa, y0 + 0.85, -0.02, xb, Math.min(y1 - 0.45, y0 + 2.35), 0.02, M.SHOJI, { param: g, grain: 0, cell: 9, occ: false });
+    } else if (u < 0.7) {
+      b.box(xa, y0, -0.03, xb, y1, 0.0, M.PLASTER, { grain: 0, cell: 9, occ: false });
+    }
+  }
+}
+
+function closedMass(b, x0, x1, y0, y1, z0, z1, o = {}) {
+  // a block of the castle seen from outside: a dark core with framed faces and plank decks
+  b.box(x0, y0, z0, x1, y1, z1, M.WOOD, { grain: 1, cell: 6 });
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, h = y1 - y0;
+  const faces = o.faces ?? ['f', 'b', 'l', 'r'];
+  const place = { f: [cx, z1, 0, x1 - x0], b: [cx, z0, Math.PI, x1 - x0], r: [x1, cz, Math.PI / 2, z1 - z0], l: [x0, cz, -Math.PI / 2, z1 - z0] };
+  for (const f of faces) {
+    const [px, pz, a, len] = place[f];
+    b.push().at(px, y0, pz).ry(a);
+    frameFace(b, len, h, o);
+    b.pop();
+  }
+  b.box(x0 - 0.05, y1 - 0.22, z0 - 0.05, x1 + 0.05, y1, z1 + 0.05, M.PLANK, { grain: 0, occ: false, cell: 4 });
+  b.box(x0 - 0.05, y0, z0 - 0.05, x1 + 0.05, y0 + 0.22, z1 + 0.05, M.PLANK, { grain: 0, occ: false, cell: 4 });
+}
+
+function block(b, o) {
+  // one cell: 'face' has three storeys of veranda and rooms towards +z (the open side) and a closed mass behind;
+  // 'closed' is the mass all through, for the cells one step back from the open space
+  b.hex = true;
+  const H = CELL / 2, glow = o.glow ?? 1;
+  if (o.kind === 'face') {
+    const back = -(VER + ROOM), fz = 5.3;
+    const red = b.chance(0.5);
+    b.push().at(0, -H, fz);
+    for (let k = 0; k < 3; k++) {
+      storey(b, { W: 12, bays: 6, y: k * FH, back, pil: red ? M.LACQUER : M.WOOD, rail: red ? M.LACQUER : M.BLACK, red, lod: o.lod,
+        glow: glow * b.r(0.4, 1.0), fusuma: b.pick([0, 0, 1, 2]), points: true, edge: 0.25 });
+    }
+    b.box(-6.25, 3 * FH - SLAB, back - 0.2, 6.25, 3 * FH - 0.03, 0.5, M.PLANK, { grain: 0 });
+    b.pop();
+    closedMass(b, -6, 6, -H, H, -6, fz + back - 0.2, { lod: o.lod, glow, faces: ['b', 'l', 'r'] });
+  } else {
+    closedMass(b, -6, 6, -H, H, -6, 6, { lod: o.lod, glow: glow * 0.8, points: true });
+  }
+}
+
+function deck(b, o) {
+  // the top of a cell with open space above it: a railing all round, lamp points, a lantern at each corner
+  b.hex = true;
+  const S = 6.0;
+  for (let q = 0; q < 4; q++) {
+    b.push().ry(q * Math.PI / 2);
+    railing(b, -S, S, 0, S - 0.15, { caps: 2, skipEnd: true, lod: o.lod, points: true, mat: b.chance(0.5) ? M.LACQUER : M.BLACK });
+    b.pop();
+  }
+  for (const [x, z] of [[-S + 0.3, -S + 0.3], [S - 0.3, S - 0.3], [S - 0.3, -S + 0.3], [-S + 0.3, S - 0.3]]) {
+    if (!o.lod) b.box(x - 0.06, 0, z - 0.06, x + 0.06, 1.2, z + 0.06, M.BLACK, { cell: 9, occ: false });
+    b.lantern(x, 1.55, z, { h: 0.5, r: 0.2, lod: o.lod });
+  }
+}
+
+function longStair(b, o) {
+  // a long straight flight across the open space, rising along +z; lamp points on both handrails, lanterns hung beneath
+  b.hex = true;
+  const n = o.steps, rise = 0.25, run = 0.3, w = o.w ?? 3.0, L = n * run, H = n * rise, rail = o.rail ?? M.LACQUER, lod = o.lod;
+  if (!lod) {
+    for (let i = 0; i < n; i++) {
+      b.box(-w / 2, (i + 1) * rise - 0.05, i * run - 0.03, w / 2, (i + 1) * rise, (i + 1) * run + 0.01, M.PLANK, { grain: 0, cell: 9, occ: false });
+      b.box(-w / 2 + 0.02, i * rise, i * run - 0.03, w / 2 - 0.02, (i + 1) * rise - 0.05, i * run, M.WOOD, { grain: 0, cell: 9, occ: false });
+    }
+  } else {
+    b.beam([0, rise / 2, 0], [0, H + rise / 2, L], w, 0.12, M.PLANK, { grain: 2 });
+  }
+  for (const sx of [-1, 1]) b.beam([sx * (w / 2 + 0.09), -0.25, -0.15], [sx * (w / 2 + 0.09), H - 0.1, L + 0.05], 0.18, 0.6, M.BLACK);
+  b.beam([0, -0.42, -0.1], [0, H - 0.27, L], w, 0.06, M.PLANK, { grain: 2 });
+  for (const sx of [-1, 1]) {
+    const x = sx * (w / 2 + 0.1);
+    for (let i = 0; i <= n; i += lod ? 24 : 6) {
+      b.box(x - 0.05, i * rise, i * run - 0.05, x + 0.05, i * rise + 1.02, i * run + 0.05, rail, { cell: 9, occ: false });
+    }
+    b.beam([x, 1.0, 0], [x, H + 1.0, L], 0.1, 0.09, rail);
+    for (let i = 2; i < n; i += lod ? 10 : 5) {
+      const s = lod ? 0.14 : 0.055, y = i * rise + 1.12, z = i * run;
+      b.box(x - s, y - s, z - s, x + s, y + s, z + s, M.LANTERN, { param: 3, occ: false, cell: 9 });
+    }
+  }
+  b.box(-w / 2 - 0.2, -SLAB, -2.4, w / 2 + 0.2, 0, -0.03, M.PLANK, { grain: 0 });
+  b.box(-w / 2 - 0.2, H - SLAB, L, w / 2 + 0.2, H, L + 2.4, M.PLANK, { grain: 0 });
+  for (let i = 20; i < n - 10; i += 42) b.lantern(0, i * rise - 1.9, i * run, { cord: 0.8, lod, glow: o.glow ?? 1 });
+}
+
+const PIECES = { facade, pavilion, stair, bridge, lanternLine, frame, tower, hall, trap, mansion, debris, block, deck, longStair };
 
 // ---------------------------------------------------------------- the library
 export const LIB = [
-  { name: 'F1', fn: 'facade', o: { bays: 6, stories: 2, roof: true, red: true } },
-  { name: 'F2', fn: 'facade', o: { bays: 8, stories: 3, roof: false } },
-  { name: 'F3', fn: 'facade', o: { bays: 5, stories: 1, roof: true } },
-  { name: 'F4', fn: 'facade', o: { bays: 7, stories: 2, roof: true, red: true, glow: 0.5 } },
-  { name: 'F5', fn: 'facade', o: { bays: 4, stories: 3, roof: true, red: true } },
-  { name: 'F6', fn: 'facade', o: { bays: 9, stories: 1, roof: false, red: true } },
-  { name: 'F7', fn: 'facade', o: { bays: 2, stories: 5, roof: true, red: true } },
-  { name: 'P1', fn: 'pavilion', o: { w: 8, d: 8, sides: ['shoji', 'fusuma', 'shoji', 'open'], roof: true, style: 1 } },
-  { name: 'P2', fn: 'pavilion', o: { w: 6, d: 10, sides: ['shoji', 'shoji', 'plaster', 'shoji'], terrace: true, red: true } },
-  { name: 'P3', fn: 'pavilion', o: { w: 12, d: 6, sides: ['open', 'shoji', 'open', 'fusuma'], roof: true, style: 0, pil: 2 } },
-  { name: 'C1', fn: 'pavilion', o: { w: 22, d: 3.2, sides: ['shoji', 'none', 'shoji', 'none'], tatami: false, red: true } },
-  { name: 'S1', fn: 'stair', o: { steps: 18 } },
-  { name: 'S2', fn: 'stair', o: { steps: 32, w: 3.0, rail: 10 } },
-  { name: 'S3', fn: 'stair', o: { steps: 50, w: 3.2, red: true } },
-  { name: 'H1', fn: 'hall', o: { s: 16, red: true } },
-  { name: 'B1', fn: 'bridge', o: { len: 30, red: true } },
-  { name: 'B2', fn: 'bridge', o: { len: 46, rail: 10 } },
-  { name: 'T1', fn: 'tower', o: { levels: 5, size: 8 } },
-  { name: 'T2', fn: 'tower', o: { levels: 3, size: 11, rail: 10 } },
-  { name: 'R1', fn: 'frame', o: { h: 34, s: 10 } },
-  { name: 'L1', fn: 'lanternLine', o: { len: 32, sag: 3, gap: 2.2 } },
-  { name: 'L2', fn: 'lanternLine', o: { len: 50, sag: 6.5, gap: 2.6 } },
+  { name: 'K1', fn: 'block', o: { kind: 'face' } },
+  { name: 'K3', fn: 'block', o: { kind: 'closed' } },
+  { name: 'KD', fn: 'deck' },
+  { name: 'LS4', fn: 'longStair', o: { steps: 168 } },
+  { name: 'BR3', fn: 'bridge', o: { len: 3 * CELL, red: true, points: true } },
+  { name: 'BR4', fn: 'bridge', o: { len: 4 * CELL, rail: 10, points: true } },
   { name: 'trap', fn: 'trap' },
   { name: 'mansion', fn: 'mansion' },
   { name: 'd_shoji', fn: 'debris', o: { kind: 'shoji' } },
@@ -924,7 +1058,7 @@ export const LIB = [
   { name: 'd_lantern', fn: 'debris', o: { kind: 'lantern' } },
 ];
 // far away, the same pieces with less in them
-for (const n of ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'P1', 'P2', 'P3', 'T1', 'T2', 'H1']) {
+for (const n of ['K1', 'K3', 'KD', 'LS4']) {
   const s = LIB.find((e) => e.name === n);
   LIB.push({ name: n + '~', fn: s.fn, seedOf: n, o: { ...s.o, lod: true } });
 }

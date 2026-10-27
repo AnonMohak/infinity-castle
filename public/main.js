@@ -43,7 +43,7 @@ function resize() {
 
 // ---------------------------------------------------------------- the kit: built and lit in workers
 const enterBtn = document.getElementById('enter');
-const cost = (s) => (s.name[0] === 'T' ? 9 : s.name[0] === 'F' ? 5 : s.name.startsWith('d_') ? 0 : 2) / (s.name.endsWith('~') ? 2 : 1);
+const cost = (s) => (s.name[0] === 'K' ? 6 : s.name === 'trap' || s.name[0] === 'B' ? 4 : s.name.startsWith('d_') ? 0 : 2) / (s.name.endsWith('~') ? 2 : 1);
 
 async function bakeKit(onProgress) {
   const specs = [...LIB].sort((a, b) => cost(b) - cost(a));
