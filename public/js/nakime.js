@@ -9,8 +9,8 @@ const damp = (a, b, k, dt) => a + (b - a) * (1 - Math.exp(-k * dt));
 
 const HEIGHT = 1.45;    // the card, kneeling, in metres
 // where her face is on the card (u0, v0, u1, v1, v up), and where the eye sits in it
-const FACE = new THREE.Vector4(0.37, 0.71, 0.63, 0.87);
-const EYE = { x: 0.5, y: 0.5, rx: 0.3, ry: 0.15 };     // in the face card's own uv
+const FACE = new THREE.Vector4(0.405, 0.735, 0.557, 0.815);
+const EYE = { x: 0.5, y: 0.44, rx: 0.36, ry: 0.21 };     // in the face card's own uv
 
 // her face behind the bangs: grey skin, and the eye, shut or open, with 肆 in the iris
 function faceCanvas(open) {
@@ -18,7 +18,7 @@ function faceCanvas(open) {
   c.width = c.height = S;
   const g = c.getContext('2d');
   const skin = g.createRadialGradient(S / 2, S / 2, S * 0.1, S / 2, S / 2, S * 0.7);
-  skin.addColorStop(0, '#b4adb3'); skin.addColorStop(1, '#6d666d');
+  skin.addColorStop(0, '#948d93'); skin.addColorStop(1, '#565056');
   g.fillStyle = skin; g.fillRect(0, 0, S, S);
   const ex = EYE.x * S, ey = (1 - EYE.y) * S, rx = EYE.rx * S, ry = EYE.ry * S;
   // dark veins round the eye
@@ -77,7 +77,7 @@ export class Nakime {
             float cx = 0.5 * (uFace.x + uFace.z), hw = 0.5 * (uFace.z - uFace.x);
             float vy = (uv.y - uFace.y) / (uFace.w - uFace.y);
             // the bangs part in a V: a narrow line at the hairline, open wide by the chin
-            float g = uPart * hw * (0.18 + 0.62 * (1.0 - vy)) * smoothstep(0.0, 0.1, vy) * (1.0 - smoothstep(0.93, 1.0, vy));
+            float g = uPart * hw * (0.2 + 0.7 * (1.0 - vy)) * smoothstep(0.0, 0.08, vy) * (1.0 - smoothstep(0.92, 1.0, vy));
             g *= 0.88 + 0.12 * sin(uv.x * 900.0 + vy * 7.0);       // the parting is ragged, strand by strand
             float d = uv.x - cx;
             if (abs(d) < g) discard;
@@ -106,7 +106,7 @@ export class Nakime {
           float lid = step(abs(vUv.y - uEye.x), uOpen * uEye.y * 1.05);
           vec3 c = mix(texture2D(tShut, vUv).rgb, texture2D(tOpen, vUv).rgb, lid);
           // an oval face; round it, the shadow of her hair
-          vec2 q = (vUv - vec2(0.5, 0.46)) / vec2(0.42, 0.52);
+          vec2 q = (vUv - vec2(0.5, 0.25)) / vec2(0.47, 0.8);
           float face = 1.0 - smoothstep(0.82, 1.0, length(q));
           c = mix(vec3(0.03, 0.025, 0.028), c, face);
           gl_FragColor = vec4(c * vec3(1.04, 0.92, 0.84) * uLight, 1.0);
