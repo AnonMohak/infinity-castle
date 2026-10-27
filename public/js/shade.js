@@ -6,7 +6,7 @@ import * as THREE from 'three';
 export const U = {
   uTime: { value: 0 },
   uGlow: { value: 1 },        // every lamp in the castle; the biwa makes it gutter
-  uFog: { value: 0.0085 },    // extinction per metre
+  uFog: { value: 0.0115 },    // extinction per metre
   uDyn: { value: 0.3 },       // diffuse share of the moving lights (the baked light already has most of it)
   uAmbient: { value: new THREE.Color(0.013, 0.012, 0.016) },
 };
@@ -14,8 +14,8 @@ export const U = {
 // ---------------------------------------------------------------- shared GLSL
 export const GLSL_VOID = /* glsl */`
 vec3 voidColor(vec3 d) {
-  vec3 below = vec3(0.026, 0.0115, 0.0055);  // the haze of a thousand lamps further down
-  vec3 level = vec3(0.0082, 0.0062, 0.0068);  // cold dark across the shaft, warm only where the lamps are
+  vec3 below = vec3(0.034, 0.016, 0.0072);   // the haze of a thousand lamps further down
+  vec3 level = vec3(0.0135, 0.0092, 0.0078); // warm dark haze across the castle
   vec3 above = vec3(0.0032, 0.0040, 0.0080);
   vec3 c = mix(level, below, smoothstep(0.05, -0.85, d.y));
   return mix(c, above, smoothstep(0.1, 0.95, d.y));
