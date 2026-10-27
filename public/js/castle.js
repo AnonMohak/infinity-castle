@@ -10,8 +10,8 @@ import { INTRO_Y, LEAD, LOOP, CHAPTERS, chapterAt, wanderAt } from './chapters.j
 const TAU = Math.PI * 2;
 export const SEG = CELL * 6;    // metres of castle per segment: six cell rows
 export { INTRO_Y };
-const LOD_DIST = 55;
-const FAR_CULL = 290;            // past this the fog has it all
+const LOD_DIST = 45;
+const FAR_CULL = 240;            // past this the fog has it all (under 3% of a part shows)
 const CLEAR = 3.4;              // nothing comes nearer the line of the fall than this
 const CANYON = 26;              // in a canyon, cells whose centre is this near the line of the fall stay open
 const VOID = 63;                // in the void, this near the axis

@@ -304,11 +304,11 @@ function adapt(dt) {
   perfClock += dt;
   if (perfClock < 1.5) return;
   perfClock = 0;
-  if (frameAvg > 1 / 42 && pixelRatio > 0.5) {
-    pixelRatio = Math.max(0.5, pixelRatio * 0.85);
+  if (frameAvg > 1 / 54 && pixelRatio > 0.7) {
+    pixelRatio = Math.max(0.7, pixelRatio * 0.9);
     goodFor = 0;
     resize();
-  } else if (frameAvg < 1 / 57) {
+  } else if (frameAvg < 1 / 64) {
     goodFor += 1;
     if (goodFor >= 3 && pixelRatio < MAX_PR) {
       pixelRatio = Math.min(MAX_PR, pixelRatio * 1.1);

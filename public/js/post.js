@@ -100,24 +100,24 @@ export class Post {
           vec2 fc = uv - uCenter;
           vec3 col = vec3(0.0);
           if (uBlur > 0.002) {
-            for (int i = 0; i < 10; i++) {
-              float s = 1.0 - uBlur * (float(i) + hash(vUv * uRes + float(i))) / 10.0;
+            for (int i = 0; i < 8; i++) {
+              float s = 1.0 - uBlur * (float(i) + hash(vUv * uRes + float(i))) / 8.0;
               vec2 p = uCenter + fc * s;
               col += vec3(texture2D(tScene, p - ca).r, texture2D(tScene, p).g, texture2D(tScene, p + ca).b);
             }
-            col /= 10.0;
+            col /= 8.0;
           } else {
             col = vec3(texture2D(tScene, uv - ca).r, texture2D(tScene, uv).g, texture2D(tScene, uv + ca).b);
           }
           col += texture2D(tBloom, uv).rgb * uBloom;
           // light shafts: the glow smeared out of the bright core below, through the gaps of the lattice
           if (uShaft > 0.001) {
-            vec2 st = (uShaftPos - uv) / 18.0;
+            vec2 st = (uShaftPos - uv) / 12.0;
             vec2 q = uv + st * hash(vUv * uRes);
             vec3 acc = vec3(0.0);
             float w = 1.0;
-            for (int i = 0; i < 18; i++) { acc += texture2D(tBloom, q).rgb * w; q += st; w *= 0.94; }
-            col += acc / 18.0 * uShaft * vec3(1.0, 0.82, 0.62);
+            for (int i = 0; i < 12; i++) { acc += texture2D(tBloom, q).rgb * w; q += st; w *= 0.91; }
+            col += acc / 12.0 * uShaft * vec3(1.0, 0.82, 0.62);
           }
           col *= uExposure * (1.0 + 0.35 * uFlash);
           col *= vec3(1.14, 0.9, 0.76);          // the whole castle a warmer, redder light
