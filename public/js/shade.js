@@ -18,6 +18,7 @@ vec3 voidColor(vec3 d) {
   vec3 level = vec3(0.0135, 0.0092, 0.0078); // warm dark haze across the castle
   vec3 above = vec3(0.0032, 0.0040, 0.0080);
   vec3 c = mix(level, below, smoothstep(0.05, -0.85, d.y));
+  c += vec3(0.11, 0.05, 0.018) * pow(max(0.0, -d.y), 14.0);   // the bright core far below, where all the lamps gather
   return mix(c, above, smoothstep(0.1, 0.95, d.y));
 }
 float fogT(float dist) { return exp(-pow(dist * uFog, 1.25)); }

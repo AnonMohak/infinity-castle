@@ -384,6 +384,9 @@ function frame() {
   cx = 0.5 + (cx - 0.5) / norm; cy = 0.5 + (cy - 0.5) / norm;
   cu.uCenter.value.set(cx, cy);
   cu.uBlur.value = clamp(fall.v * 0.001, 0, 0.055) * (0.35 + 0.65 * Math.abs(_fwd.y)) / norm;
+  // light shafts rise from the core below, only while we look down towards it
+  cu.uShaftPos.value.set(cx, cy);
+  cu.uShaft.value = down ? 1.4 * smooth(0.25, 0.85, -_fwd.y) / norm : 0;
 
   sky.position.copy(camera.position);
   far.material.uniforms.uCamY.value = camera.position.y;

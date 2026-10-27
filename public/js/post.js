@@ -74,12 +74,13 @@ export class Post {
         tScene: { value: null }, tBloom: { value: null },
         uTime: { value: 0 }, uRes: { value: new THREE.Vector2() }, uBlur: { value: 0 }, uCenter: { value: new THREE.Vector2(0.5, 0.5) },
         uExposure: { value: 0.78 }, uBloom: { value: 0.55 }, uFade: { value: 0 }, uFlash: { value: 0 }, uShock: { value: 0 },
+        uShaft: { value: 0 }, uShaftPos: { value: new THREE.Vector2(0.5, 0.5) },
       },
       vertexShader: FS_VERT,
       fragmentShader: /* glsl */`
         uniform sampler2D tScene, tBloom;
-        uniform float uTime, uBlur, uExposure, uBloom, uFade, uFlash, uShock;
-        uniform vec2 uRes, uCenter;
+        uniform float uTime, uBlur, uExposure, uBloom, uFade, uFlash, uShock, uShaft;
+        uniform vec2 uRes, uCenter, uShaftPos;
         varying vec2 vUv;
         vec3 aces(vec3 x) {
           const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
@@ -109,6 +110,15 @@ export class Post {
             col = vec3(texture2D(tScene, uv - ca).r, texture2D(tScene, uv).g, texture2D(tScene, uv + ca).b);
           }
           col += texture2D(tBloom, uv).rgb * uBloom;
+          // light shafts: the glow smeared out of the bright core below, through the gaps of the lattice
+          if (uShaft > 0.001) {
+            vec2 st = (uShaftPos - uv) / 18.0;
+            vec2 q = uv + st * hash(vUv * uRes);
+            vec3 acc = vec3(0.0);
+            float w = 1.0;
+            for (int i = 0; i < 18; i++) { acc += texture2D(tBloom, q).rgb * w; q += st; w *= 0.94; }
+            col += acc / 18.0 * uShaft * vec3(1.0, 0.82, 0.62);
+          }
           col *= uExposure * (1.0 + 0.35 * uFlash);
           col = aces(col);
           // split tone: ink-blue shadows, amber light
