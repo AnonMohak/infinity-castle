@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { LIB } from './js/kit.js';
 import { U, castleMaterial, makeEnv, voidSky, farLamps } from './js/shade.js';
 import { Castle, Debris, pathAt, INTRO_Y } from './js/castle.js';
+import { Director } from './js/director.js';
 import { Post } from './js/post.js';
 import { Score } from './js/sound.js';
 
@@ -118,37 +119,20 @@ async function build() {
 }
 
 // ---------------------------------------------------------------- the fall
-const SHOTS = [
-  { pitch: -1.12, rate: 0.1, roll: 0.0, dur: 12 },               // down and ahead: the shaft opening below
-  { pitch: -0.36, rate: 0.07, roll: 0.06, dur: 10 },             // across, at the walls rushing up
-  { pitch: -1.5, rate: 0.42, roll: 0.0, dur: 9 },                // straight down and turning
-  { pitch: 0.82, rate: -0.05, roll: -0.05, dur: 8 },             // back up at what is already gone
-  { pitch: -0.85, rate: 0.03, roll: 0.0, dur: 8, tumble: true }, // head over heels, once
-];
-const ORDER = [0, 1, 2, 0, 3, 1, 4, 2, 1, 0, 3];
 const fall = {
   phase: 'room', y: INTRO_Y + EYE, v: 0, vt: FALL_SPEED, slow: 1,
   yaw: +(params.get('yaw') || 0), pitch: +(params.get('pitch') || 0.02), roll: 0, yawRate: 0,
-  shotIdx: -1, shot: 0, shotEnd: 0, tumbleAt: -1, shake: 0, manual: params.has('free'),
+  shake: 0, manual: params.has('free'),
   strikeAt: Infinity, dropAt: Infinity,
 };
 const look = { mx: 0, my: 0, yaw: 0, pitch: 0, dragX: 0, dragY: 0 };
 const _p = new THREE.Vector3(), _v = new THREE.Vector3(), _fwd = new THREE.Vector3();
 
-function nextShot(t) {
-  fall.shotIdx = (fall.shotIdx + 1) % ORDER.length;
-  fall.shot = ORDER[fall.shotIdx];
-  const s = SHOTS[fall.shot];
-  fall.shotEnd = t + s.dur * (0.85 + Math.random() * 0.3);
-  if (s.tumble) fall.tumbleAt = t + 1.5;
-}
+const director = new Director();
 
 function startFalling(t) {
   fall.phase = 'fall';
-  fall.shotIdx = -1;
-  nextShot(t);
-  debris.start(fallPos);
-  nextStrike = t + 5;
+  director.update(INTRO_Y - fall.y, t);
 }
 
 function updateCamera(t, dt) {
@@ -169,11 +153,13 @@ function updateCamera(t, dt) {
     fall.roll = damp(fall.roll, 0.1, 0.8, dt);
     if (fall.y < INTRO_Y - 16) startFalling(t);
   } else {
+    // the director sets the speed and the shots of the chapter we are falling through
+    director.update(INTRO_Y - fall.y, t);
+    fall.vt = director.speed();
     fall.v = damp(fall.v, STILL ? 0 : fall.vt * fall.slow, fall.slow < 0.98 ? 5 : 0.8, dt);
     fall.y -= fall.v * dt;
     if (!fall.manual && !STILL) {
-      if (t > fall.shotEnd) nextShot(t);
-      const s = SHOTS[fall.shot];
+      const s = director.shotSpec;
       fall.yawRate = damp(fall.yawRate, s.rate, 0.5, dt);
       fall.pitch = damp(fall.pitch, s.pitch, 0.55, dt);
       fall.roll = damp(fall.roll, s.roll + 0.04 * Math.sin(t * 0.31), 0.5, dt);
@@ -192,7 +178,8 @@ function updateCamera(t, dt) {
   const free = fall.manual;
   look.yaw = damp(look.yaw, -look.mx * (free ? Math.PI : 0.9) - look.dragX, 2.4, dt);
   look.pitch = damp(look.pitch, -look.my * (free ? 1.3 : 0.6) - look.dragY, 2.4, dt);
-  const tumble = fall.tumbleAt > 0 ? Math.PI * 2 * smooth(fall.tumbleAt, fall.tumbleAt + 3.6, t) : 0;
+  const ta = director.tumbleAt;
+  const tumble = ta > 0 ? Math.PI * 2 * smooth(ta, ta + 3.6, t) : 0;
   const sh = fall.shake;
   camera.rotation.set(
     fall.pitch + look.pitch - tumble + sh * 0.03 * Math.sin(t * 61),
@@ -207,17 +194,12 @@ const fallPos = new THREE.Vector3();   // where the fall has the camera (a debug
 
 // ---------------------------------------------------------------- the biwa
 let score = null;
-let strikes = 0, nextStrike = Infinity, struckAt = -10, flash = 0, gutter = 0;
-const biwaEl = document.getElementById('biwa');
-const notesEl = document.getElementById('notes');
+let strikes = 0, struckAt = -10, flash = 0, gutter = 0;
 
 // the biwa only sounds when a door opens under you: the floor of the Ubuyashiki room, a trap's roof hatch
 function pluck(strength) {
   strikes++;
   score?.biwa(strength);
-  biwaEl.classList.add('struck');
-  requestAnimationFrame(() => requestAnimationFrame(() => biwaEl.classList.remove('struck')));
-  notesEl.textContent = `${strikes} ${strikes === 1 ? 'note' : 'notes'}`;
 }
 
 function strike(t, intro = false) {
@@ -251,21 +233,8 @@ addEventListener('pointermove', (e) => {
 });
 canvas.addEventListener('pointerdown', (e) => {
   if (e.pointerType !== 'mouse') dragging = { x: e.clientX, y: e.clientY, moved: 0 };
-  else if (live && fall.phase === 'fall') strike(t);
 });
-addEventListener('pointerup', () => {
-  if (dragging && dragging.moved < 8 && live && fall.phase === 'fall') strike(t);
-  dragging = null;
-});
-addEventListener('wheel', (e) => { fall.vt = clamp(fall.vt - e.deltaY * 0.02, 3, 48); }, { passive: true });
-addEventListener('keydown', (e) => {
-  if (!live) return;
-  if (e.key === 'ArrowUp') { fall.vt = clamp(fall.vt - 3, 3, 48); e.preventDefault(); }
-  else if (e.key === 'ArrowDown') { fall.vt = clamp(fall.vt + 3, 3, 48); e.preventDefault(); }
-  else if (e.key === ' ') { if (fall.phase === 'fall') strike(t); e.preventDefault(); }
-  else if (e.key === 'c' || e.key === 'C') toggleCamera();
-  else if (e.key === 'Escape' || e.key === 'h' || e.key === 'H') document.body.classList.toggle('nohud');
-});
+addEventListener('pointerup', () => { dragging = null; });
 
 const muteBtn = document.getElementById('mute');
 muteBtn.addEventListener('click', () => {
@@ -275,34 +244,6 @@ muteBtn.addEventListener('click', () => {
   muteBtn.setAttribute('aria-pressed', String(score.muted));
   muteBtn.blur();
 });
-const camBtn = document.getElementById('camBtn');
-function toggleCamera() {
-  fall.manual = !fall.manual;
-  camBtn.textContent = fall.manual ? 'Camera: free' : 'Camera: cinematic';
-  camBtn.setAttribute('aria-pressed', String(fall.manual));
-}
-camBtn.addEventListener('click', () => { toggleCamera(); camBtn.blur(); });
-document.getElementById('hide').addEventListener('click', (e) => {
-  document.body.classList.add('nohud');
-  e.currentTarget.blur();
-});
-addEventListener('pointerdown', (e) => {
-  if (document.body.classList.contains('nohud') && !e.target.closest('#veil')) document.body.classList.remove('nohud');
-});
-
-// ---------------------------------------------------------------- HUD
-const depthEl = document.getElementById('depth');
-const rateEl = document.getElementById('rate');
-let hudTimer = 0;
-function updateHud(dt) {
-  hudTimer += dt;
-  if (hudTimer < 0.1) return;
-  hudTimer = 0;
-  const fallen = Math.max(0, INTRO_Y + EYE - fall.y);
-  depthEl.innerHTML = `${Math.floor(fallen).toLocaleString('en-US')} <small>m</small>`;
-  rateEl.textContent = `${fall.v.toFixed(0)} m/s${fall.slow < 0.9 ? ' · through a room' : ''}`;
-}
-
 // ---------------------------------------------------------------- adaptive resolution
 let frameAvg = 1 / 60, perfClock = 0, goodFor = 0;
 function adapt(dt) {
@@ -344,9 +285,9 @@ function frame() {
     if (tr.doorT[1] && !tr.heard1) { tr.heard1 = true; score?.slide(0, 0.2); score?.knock(0.2, 0.2, -0.2); }
   }
   debris.update(dt, fallPos, fall.slow);
-  if (live && fall.phase === 'fall' && !STILL && t > nextStrike) {
-    strike(t);
-    nextStrike = t + 7 + Math.random() * 5;
+  if (live && fall.phase === 'fall' && !STILL) {
+    if (director.strikeDue(t)) strike(t);
+    if (director.debris) { if (!debris.on) debris.start(fallPos); } else debris.stop();
   }
   camera.updateMatrixWorld();
   drawn = castle.pack(camera);
@@ -392,7 +333,6 @@ function frame() {
   far.material.uniforms.uCamY.value = camera.position.y;
   if (score) score.setFall(fall.phase === 'room' ? 0 : fall.v, dt);
 
-  updateHud(dt);
   fadeIn = live ? Math.min(1, fadeIn + dt / 2.0) : Math.min(0.4, fadeIn + dt / 3);
   cu.uFade.value = fadeIn * fadeIn;
   post.render(scene, camera);
@@ -434,4 +374,4 @@ requestAnimationFrame(frame);
 if (params.has('auto')) enter(false);
 
 // debug hooks for tuning from the console
-window.__ic = { castle, camera, fall, U, post, scene, renderer, strike: () => strike(t), lamps, slowmo: (s) => { timeScale = s; }, pose: (x, y, z, pitch = 0, yaw = 0) => { debugPose = { p: new THREE.Vector3(x, y, z), pitch, yaw }; }, get drawn() { return drawn; }, get t() { return t; } };
+window.__ic = { castle, director, camera, fall, U, post, scene, renderer, strike: () => strike(t), lamps, slowmo: (s) => { timeScale = s; }, pose: (x, y, z, pitch = 0, yaw = 0) => { debugPose = { p: new THREE.Vector3(x, y, z), pitch, yaw }; }, get drawn() { return drawn; }, get t() { return t; } };

@@ -1,30 +1,36 @@
 // Infinity Castle — the world. One endless structure on a grid of 12.6 m cells, built six cell rows at a time
-// below the fall, with a canyon carved through it along the line of the fall. Blocks turn only in quarter and
+// below the fall, with open space carved through it along the line of the fall: a canyon, a well, an atrium or
+// a void, as the chapter of that depth asks (chapters.js). Blocks turn only in quarter and
 // half turns, so it stays one connected thing; the biwa turns them over in their cells. Every piece is an
 // instance; each frame only the ones in view are packed into their InstancedMesh (far ones into the lighter twin).
 import * as THREE from 'three';
 import { CELL } from './kit.js';
+import { INTRO_Y, chapterAt, wanderAt } from './chapters.js';
 
 const TAU = Math.PI * 2;
 export const SEG = CELL * 6;    // metres of castle per segment: six cell rows
-export const INTRO_Y = 30;      // the floor of the Ubuyashiki room
+export { INTRO_Y };
 const LOD_DIST = 55;
 const FAR_CULL = 290;            // past this the fog has it all
 const CLEAR = 3.4;              // nothing comes nearer the line of the fall than this
-const CANYON = 26;              // cells whose centre is this near the line of the fall stay open
+const CANYON = 26;              // in a canyon, cells whose centre is this near the line of the fall stay open
+const VOID = 63;                // in the void, this near the axis
 const TOP = INTRO_Y + 20;       // no cells above this: the void over the castle
-const CAP = { K1: 1000, 'K1~': 1000, K3: 1600, 'K3~': 1600, KD: 500, 'KD~': 500, LS4: 24, 'LS4~': 24, BR3: 40, BR4: 40, trap: 4, mansion: 1 };
+const CAP = { K1: 1400, 'K1~': 1400, K3: 2000, 'K3~': 2000, KD: 500, 'KD~': 500, LS4: 24, 'LS4~': 24, BR3: 40, BR4: 40, trap: 4, mansion: 1 };
 // a face block turns so its open side (+z) looks along one of these
 const DIRS = [[1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2], [0, 1, 0], [0, -1, Math.PI]];
 const QUARTERS = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
 
-// the line the fall follows: a slow wander, so the shaft never lines up into a tube
+// the line the fall follows: a slow wander through the canyons, so they never line up into a tube; straight down
+// the axis of the grid (the middle of cell 0, 0) through the well, the atria and the void
 export function pathAt(y, out = new THREE.Vector3()) {
+  const w = wanderAt(INTRO_Y - y);
   return out.set(
-    5.5 * Math.sin(y * 0.011 + 1.3) + 2.5 * Math.sin(y * 0.027 + 0.4),
+    w * (5.5 * Math.sin(y * 0.011 + 1.3) + 2.5 * Math.sin(y * 0.027 + 0.4)),
     y,
-    5.5 * Math.sin(y * 0.009 + 4.1) + 2.5 * Math.sin(y * 0.031 + 2.2));
+    w * (5.5 * Math.sin(y * 0.009 + 4.1) + 2.5 * Math.sin(y * 0.031 + 2.2)));
 }
+const isCanyon = (y) => chapterAt(INTRO_Y - y).ch.open === 'canyon';
 
 function mulberry32(a) {
   return function () {
@@ -147,13 +153,26 @@ export class Castle {
     }
   }
 
+  // which cells of row j are open, and how far from the axis the open space reaches
+  openRow(j) {
+    const yc = -(j + 0.5) * CELL;
+    if (yc > TOP) return { open: () => true, reach: 0, p: new THREE.Vector3(0, yc, 0) };
+    const p = pathAt(yc, new THREE.Vector3());
+    switch (chapterAt(INTRO_Y - yc).ch.open) {
+      case 'well': return { open: (i, l) => i === 0 && l === 0, reach: CELL, p };
+      case 'atrium': return { open: (i, l) => Math.abs(i) <= 1 && Math.abs(l) <= 1, reach: 2 * CELL, p };
+      case 'void': return { open: (i, l) => Math.hypot(i * CELL, l * CELL) <= VOID + jag(i, l, j) * 0.6, reach: VOID + 5, p };
+      default: return { open: (i, l) => Math.hypot(i * CELL - p.x, l * CELL - p.z) <= CANYON + jag(i, l, j), reach: CANYON + 7, p };
+    }
+  }
+
   build(k) {
     const rnd = mulberry32((Math.imul(k, 0x9E3779B1) ^ 0x5bd1e995) >>> 0);
     const r = (a = 0, b = 1) => a + (b - a) * rnd();
     const pick = (a) => a[Math.floor(rnd() * a.length) % a.length];
     const seg = { k, list: [] };
     const top = -k * SEG;
-    const p = new THREE.Vector3(), pa = new THREE.Vector3(), o = new THREE.Vector3();
+    const p = new THREE.Vector3(), o = new THREE.Vector3();
     const glow = () => (rnd() < 0.12 ? r(0.15, 0.4) : r(0.75, 1.15));
 
     // ---- the cells: open near the line of the fall, a face block where a cell looks into the open,
@@ -161,12 +180,10 @@ export class Castle {
     for (let row = 0; row < 6; row++) {
       const j = k * 6 + row, yc = -(j + 0.5) * CELL;
       if (yc > TOP) continue;
-      pathAt(yc, p);
-      pathAt(yc + CELL, pa);
-      // the edge of the canyon is ragged: each cell has its own reach, so blocks jut out and fall back
-      const open = (i, l) => Math.hypot(i * CELL - p.x, l * CELL - p.z) <= CANYON + jag(i, l, j);
-      const openAbove = (i, l) => yc + CELL > TOP || Math.hypot(i * CELL - pa.x, l * CELL - pa.z) <= CANYON + jag(i, l, j - 1);
-      const span = Math.ceil(CANYON / CELL) + 2;
+      // the edge of a canyon is ragged: each cell has its own reach, so blocks jut out and fall back
+      const here = this.openRow(j), open = here.open, openAbove = this.openRow(j - 1).open;
+      p.copy(here.p);
+      const span = Math.ceil(here.reach / CELL) + 2;
       const ci = Math.round(p.x / CELL), cl = Math.round(p.z / CELL);
       for (let i = ci - span; i <= ci + span; i++) for (let l = cl - span; l <= cl + span; l++) {
         if (open(i, l)) continue;
@@ -219,7 +236,7 @@ export class Castle {
     };
     for (let a = 0, n = 0; a < 14 && n < 3; a++) {
       const row = Math.floor(r(0, 6)), yb = -(k * 6 + row + 1) * CELL + 4.2 * Math.floor(r(0, 3));
-      if (yb > TOP - 8 || Math.abs(yb - INTRO_Y) < 26) continue;
+      if (yb > TOP - 8 || Math.abs(yb - INTRO_Y) < 26 || !isCanyon(yb - 8) || !isCanyon(yb + 8)) continue;
       pathAt(yb, p);
       const alongX = rnd() < 0.5, off = (rnd() < 0.5 ? -1 : 1) * r(5.5, 14);
       const q = qe(0, alongX ? 0 : Math.PI / 2, 0);
@@ -229,7 +246,7 @@ export class Castle {
     if (rnd() < 0.85) {
       for (let a = 0; a < 8; a++) {
         const row = Math.floor(r(0, 3)), yb = -(k * 6 + row + 3) * CELL;
-        if (yb + 42 > TOP - 8 || Math.abs(yb - INTRO_Y) < 60) continue;
+        if (yb + 42 > TOP - 8 || Math.abs(yb - INTRO_Y) < 60 || !isCanyon(yb - 8) || !isCanyon(yb + 50)) continue;
         pathAt(yb + 21, p);
         const q = qe(0, pick(QUARTERS), 0);
         const dir = new THREE.Vector3(0, 0, 1).applyQuaternion(q), side = new THREE.Vector3(1, 0, 0).applyQuaternion(q);
@@ -242,7 +259,7 @@ export class Castle {
     }
 
     // ---- every other segment, a room right across the fall: it opens as you reach it
-    if (k > 0 && k % 2 === 1) {
+    if (k > 0 && k % 2 === 1 && isCanyon(top - SEG * 0.5 - 20) && isCanyon(top - SEG * 0.5 + 30)) {
       const y = top - SEG * 0.5;
       const q = qe(0, pick(QUARTERS), 0);
       const c = this.centreFor('trap', q, pathAt(y, new THREE.Vector3()));
@@ -421,6 +438,11 @@ export class Debris {
     this.on = true;
     for (const it of this.items) { this.spawn(it, true); this.castle.all.add(it); }
     this.update(0, cam);
+  }
+  stop() {
+    if (!this.on) return;
+    this.on = false;
+    for (const it of this.items) this.castle.all.delete(it);
   }
   spawn(it, first) {
     const ang = Math.random() * TAU, rad = 3.2 + Math.random() * 7;

@@ -68,31 +68,17 @@
     /* ---------- HUD ---------- */
     .hud { position: fixed; z-index: 10; pointer-events: none; opacity: 0; transition: opacity 2s ease 1.6s; text-shadow: 0 0 10px rgba(5, 3, 2, 0.9), 0 0 2px rgba(5, 3, 2, 0.8); }
     body.live .hud { opacity: 1; }
-    body.nohud .hud { opacity: 0 !important; transition-delay: 0s; }
     .tl { top: calc(22px + env(safe-area-inset-top, 0px)); left: max(24px, env(safe-area-inset-left, 0px)); }
-    .bl { bottom: calc(22px + env(safe-area-inset-bottom, 0px)); left: max(24px, env(safe-area-inset-left, 0px)); }
-    .br { bottom: calc(22px + env(safe-area-inset-bottom, 0px)); right: max(24px, env(safe-area-inset-right, 0px)); text-align: right; }
     .tr { top: calc(22px + env(safe-area-inset-top, 0px)); right: max(24px, env(safe-area-inset-right, 0px)); text-align: right; }
     .mark { font-family: var(--f-display); font-weight: 700; font-size: 22px; letter-spacing: 0.3em; color: var(--ink); opacity: 0.9; }
     .sub2 { margin-top: 6px; font-size: 10.5px; letter-spacing: 0.3em; color: var(--dim); text-transform: uppercase; }
-    .readout { font-variant-numeric: tabular-nums; }
-    .readout .k { font-size: 10px; letter-spacing: 0.3em; color: var(--dim); text-transform: uppercase; }
-    .readout .v { margin-top: 6px; font-size: 15px; letter-spacing: 0.08em; color: var(--ink); }
-    .readout .v small { color: var(--dim); font-size: 11px; letter-spacing: 0.12em; }
-    .readout .rate { margin-top: 4px; font-size: 10.5px; color: var(--dim); letter-spacing: 0.12em; }
     .tr button {
       pointer-events: auto; cursor: pointer; appearance: none; background: none; border: 0; padding: 4px 0;
       color: var(--dim); font-family: var(--f-mono); font-size: 10.5px; letter-spacing: 0.24em; text-transform: uppercase;
     }
     .tr button:hover, .tr button:focus-visible { color: var(--ink); outline: none; }
-    #biwa { display: inline-grid; justify-items: end; gap: 6px; }
-    #biwa .note { font-family: var(--f-display); font-size: 26px; color: var(--ink); opacity: 0.35; transition: opacity 1.4s ease, color 1.4s ease, text-shadow 1.4s ease; }
-    #biwa.struck .note { opacity: 1; color: #ffd7a8; text-shadow: 0 0 18px rgba(236, 138, 62, 0.9); transition: none; }
-    #biwa .k { font-size: 10px; letter-spacing: 0.3em; color: var(--dim); text-transform: uppercase; }
-
     @media (max-width: 720px) {
-      .bl .rate, .sub2, #biwa .k { display: none; }
-      .readout .v { font-size: 13px; }
+      .sub2 { display: none; }
       .mark { font-size: 18px; }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -114,10 +100,9 @@
       <p class="lede">The biwa sounds once and the floor is gone. Below: rooms without end, and the biwa again at every door that opens under you.</p>
       <button id="enter" type="button" disabled>Loading</button>
       <p class="how mouse">
-        Sound on. Move the mouse to look. Scroll or <kbd>&uarr;</kbd> <kbd>&darr;</kbd> to fall faster or slower.
-        <kbd>Space</kbd> or click refolds the castle. <kbd>C</kbd> frees the camera.
+        Sound on. Move the mouse to look around. The castle does the rest.
       </p>
-      <p class="how touch">Sound on. Drag to look. Tap to refold the castle.</p>
+      <p class="how touch">Sound on. Drag to look around. The castle does the rest.</p>
       <p class="fine">A fan piece after Demon Slayer (Kimetsu no Yaiba)</p>
     </div>
   </div>
@@ -128,22 +113,7 @@
   </div>
 
   <div class="hud tr">
-    <button id="mute" type="button" aria-pressed="false">Sound on</button><br>
-    <button id="camBtn" type="button" aria-pressed="false">Camera: cinematic</button><br>
-    <button id="hide" type="button">Hide HUD</button>
-  </div>
-
-  <div class="hud bl readout">
-    <div class="k">Fallen</div>
-    <div class="v" id="depth">0 <small>m</small></div>
-    <div class="rate" id="rate">0 m/s</div>
-  </div>
-
-  <div class="hud br">
-    <div id="biwa">
-      <div class="note" lang="ja">琵琶</div>
-      <div class="k" id="notes">Listen for the biwa</div>
-    </div>
+    <button id="mute" type="button" aria-pressed="false">Sound on</button>
   </div>
 
   <script type="module" src="./main.js"></script>
