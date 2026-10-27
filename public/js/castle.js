@@ -147,9 +147,21 @@ export class Castle {
   // ---------------------------------------------------------------- segments
   update(camY) {
     const cur = Math.floor(-camY / SEG);
-    for (let k = cur - 1; k <= cur + 3; k++) if (!this.segments.has(k)) this.segments.set(k, this.build(k));
+    for (let k = cur - 1; k <= cur + 3; k++) {
+      if (this.segments.has(k)) continue;
+      const seg = { k, list: [] };
+      seg.steps = this.build(k, seg);
+      this.segments.set(k, seg);
+    }
+    // segments around the camera are built at once; the far ones a few rows a frame, so no frame stalls
+    const t0 = performance.now();
+    for (const k of [...this.segments.keys()].sort((a, b) => a - b)) {
+      const sg = this.segments.get(k);
+      while (sg.steps && (k <= cur + 1 || performance.now() - t0 < 3)) if (sg.steps.next().done) sg.steps = null;
+    }
     for (const [k, s] of this.segments) {
       if (k >= cur - 1 && k <= cur + 3) continue;
+      s.steps = null;
       for (const it of s.list) this.remove(it);
       this.traps = this.traps.filter((t) => this.all.has(t));
       this.gates = this.gates.filter((t) => this.all.has(t));
@@ -193,11 +205,11 @@ export class Castle {
     }
   }
 
-  build(k) {
+  // builds segment k into seg a step at a time: it yields after each cell row and each kind of set piece
+  *build(k, seg) {
     const rnd = mulberry32((Math.imul(k, 0x9E3779B1) ^ 0x5bd1e995) >>> 0);
     const r = (a = 0, b = 1) => a + (b - a) * rnd();
     const pick = (a) => a[Math.floor(rnd() * a.length) % a.length];
-    const seg = { k, list: [] };
     const top = -k * SEG;
     const p = new THREE.Vector3(), o = new THREE.Vector3();
     const glow = () => (rnd() < 0.12 ? r(0.15, 0.4) : r(0.75, 1.15));
@@ -205,6 +217,7 @@ export class Castle {
     // ---- the cells: open near the line of the fall, a face block where a cell looks into the open,
     // a closed block one step further back, nothing deeper (it is never seen)
     for (let row = 0; row < 6; row++) {
+      yield;
       const j = k * 6 + row, yc = -(j + 0.5) * CELL;
       if (yc > TOP) continue;
       // the edge of a canyon is ragged: each cell has its own reach, so blocks jut out and fall back
@@ -274,6 +287,7 @@ export class Castle {
       return it;
     };
 
+    yield;
     // ---- the atria: a floor with a hatch under each (D4); lanterns hang from the top of the first two and stand
     // up from the floor of the third, which is upside down
     const flip = qe(Math.PI, 0, 0), up = new THREE.Quaternion();
@@ -288,6 +302,7 @@ export class Castle {
       this.add(seg, 'AL', 'set', up, this.centreFor('AL', up, o), rnd(), 1);
     }
 
+    yield;
     // ---- the void: the red ring ceiling under the row that closes over it (D5), red pillars standing in it,
     // lantern lines slung across it
     const voidRows = [];
@@ -315,6 +330,7 @@ export class Castle {
       }
     }
 
+    yield;
     // ---- Nakime's platform, hung near the bottom of the void: the camera stops over its hatch (D7) at her eye
     // height, 4 m in front of her
     for (const { y } of this.marks('nakime', [80], top, top - SEG)) {
@@ -326,6 +342,7 @@ export class Castle {
       this.platforms.push(it);
     }
 
+    yield;
     // ---- across the canyon: bridges at the floor levels of the blocks, and long stairs
     for (let a = 0, n = 0; a < 14 && n < 3; a++) {
       const row = Math.floor(r(0, 6)), yb = -(k * 6 + row + 1) * CELL + 4.2 * Math.floor(r(0, 3));
@@ -351,6 +368,7 @@ export class Castle {
       }
     }
 
+    yield;
     // ---- every other segment, a room right across the fall: it opens as you reach it
     if (k > 0 && k % 2 === 1 && isCanyon(top - SEG * 0.5 - 20) && isCanyon(top - SEG * 0.5 + 30)) {
       const y = top - SEG * 0.5;
