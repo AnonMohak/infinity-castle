@@ -22,12 +22,13 @@ Open http://127.0.0.1:8795 and click **Fall**. The first visit takes a few secon
 |---|---|
 | Mouse | Look around |
 | Scroll, `↑` / `↓` | Fall slower or faster |
-| `Space`, click | Strike the biwa: the castle refolds |
+| `Space`, click | The castle refolds |
 | `C` | Free camera on/off (cinematic shots otherwise) |
 | `H`, `Esc` | Hide or show the HUD |
-| Phone | Drag to look, tap to strike |
+| Phone | Drag to look, tap to refold |
 
-The biwa also sounds on its own every 7 to 12 seconds. Every other segment of the shaft has a room built
+The castle also refolds on its own every 7 to 12 seconds. The biwa sounds only when a door opens under
+you: the floor of the Ubuyashiki room, and the roof hatch of each room across the fall. Every other segment of the shaft has a room built
 right across the fall: its roof hatch opens as you come down on it, time slows while you fall through it,
 and the tatami in its floor slide apart under you.
 

@@ -213,23 +213,28 @@ let strikes = 0, nextStrike = Infinity, struckAt = -10, flash = 0, gutter = 0;
 const biwaEl = document.getElementById('biwa');
 const notesEl = document.getElementById('notes');
 
-function strike(t, intro = false) {
+// the biwa only sounds when a door opens under you: the floor of the Ubuyashiki room, a trap's roof hatch
+function pluck(strength) {
   strikes++;
+  score?.biwa(strength);
+  biwaEl.classList.add('struck');
+  requestAnimationFrame(() => requestAnimationFrame(() => biwaEl.classList.remove('struck')));
+  notesEl.textContent = `${strikes} ${strikes === 1 ? 'note' : 'notes'}`;
+}
+
+function strike(t, intro = false) {
   struckAt = t;
   flash = 1;
   gutter = 1;
   fall.shake = intro ? 0.7 : 1;
   const res = intro ? { moved: 0, doors: 0 } : castle.strike(camera.position, t);
+  if (intro) pluck(1.1);
   if (score) {
-    score.biwa(intro ? 1.1 : 0.95);
     const slides = Math.min(6, Math.ceil(res.doors / 4));
     for (let i = 0; i < slides; i++) score.slide(0.08 + Math.random() * 0.4, Math.random() * 1.6 - 0.8);
     if (res.moved) score.thud(0.12, Math.min(0.45, 0.15 + res.moved * 0.03));
     if (intro) { score.slide(0.05, -0.3); score.slide(0.08, 0.3); }
   }
-  biwaEl.classList.add('struck');
-  requestAnimationFrame(() => requestAnimationFrame(() => biwaEl.classList.remove('struck')));
-  notesEl.textContent = `${strikes} ${strikes === 1 ? 'note' : 'notes'}`;
 }
 
 // ---------------------------------------------------------------- input
@@ -334,7 +339,10 @@ function frame() {
   castle.update(fall.y);
   fall.slow = castle.tick(t, dt, fall.y);
   for (const tr of castle.traps) {
-    if (tr.doorT[0] && !tr.heard0) { tr.heard0 = true; score?.slide(0, 0); score?.knock(0.22, 0.2); }
+    if (tr.doorT[0] && !tr.heard0) {
+      tr.heard0 = true; score?.slide(0, 0); score?.knock(0.22, 0.2);
+      if (live && fall.phase === 'fall') pluck(0.95);
+    }
     if (tr.doorT[1] && !tr.heard1) { tr.heard1 = true; score?.slide(0, 0.2); score?.knock(0.2, 0.2, -0.2); }
   }
   debris.update(dt, fallPos, fall.slow);
